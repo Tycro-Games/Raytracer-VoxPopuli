@@ -126,8 +126,7 @@ using namespace Tmpl8;
 #include <GLFW/glfw3native.h>
 
 //external
-#define OGT_VOX_IMPLEMENTATION
-#include "ogt_vox.h"
+
 // zlib
 #include "zlib.h"
 

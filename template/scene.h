@@ -2,7 +2,7 @@
 
 // high level settings
 // #define TWOLEVEL
-constexpr auto WORLDSIZE = 32; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
+constexpr auto WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
 // #define USE_SIMD
 // #define USE_FMA3
 // #define SKYDOME
@@ -83,7 +83,11 @@ namespace Tmpl8
 		float3 D = float3(0); // ray direction
 		float t = 1e34f; // ray length
 		float3 Dsign = float3(1); // inverted ray direction signs, -1 or 1
-		MaterialType::MatType indexMaterial = MaterialType::NONE;
+
+
+		MaterialType::MatType indexMaterial = MaterialType::NONE; //replace grid color with material index
+
+
 		int8_t depth = 5;
 		float3 rayColor{1};
 		// 32-bit ARGB color of a voxelhit object index; 0 = NONE
@@ -121,13 +125,16 @@ namespace Tmpl8
 
 		void GenerateSomeNoise(float frequency);
 		Scene();
-		void load_and_assign_vox_scene(const char* filename, uint32_t scene_read_flags);
+		void LoadModel(const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
 
 
 		bool IsOccluded(const Ray& ray) const;
 		void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);
-		MaterialType::MatType* grid;
+
+		std::array<MaterialType::MatType, GRIDSIZE3> grid{};
+
+
 		Cube cube;
 		std::vector<shared_ptr<Material>> materials;
 

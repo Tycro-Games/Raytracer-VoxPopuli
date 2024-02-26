@@ -271,7 +271,8 @@ void Renderer::Init()
 		mainScene.materials.push_back(mat);
 	for (auto& mat : reflectivityMaterials)
 		mainScene.materials.push_back(mat);
-} //TODO add an enum
+}
+
 void Renderer::Illumination(Ray& ray, float3& incLight)
 {
 	const auto lightType = static_cast<size_t>(Rand(MAX_LIGHT_TYPES - 1));
@@ -541,7 +542,7 @@ void Renderer::HandleImguiGeneral()
 	{
 		ResetAccumulator();
 	}
-	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 1.0f);
+	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 10.0f);
 	if (ImGui::IsItemEdited())
 	{
 		ResetAccumulator();

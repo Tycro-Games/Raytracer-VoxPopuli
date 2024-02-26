@@ -1,5 +1,10 @@
 #include "precomp.h"
 
+
+#pragma warning(push, 0)
+#define OGT_VOX_IMPLEMENTATION
+#include "ogt_vox.h"
+#pragma warning(pop)
 float3 Ray::GetNormal() const
 {
 	// return the voxel normal at the nearest intersection
@@ -145,14 +150,14 @@ Scene::Scene()
 {
 	// the voxel world sits in a 1x1x1 cube
 	cube = Cube(float3(0, 0, 0), float3(1, 1, 1));
+	grid.fill(MaterialType::NONE);
 	// initialize the mainScene using Perlin noise, parallel over z
-	grid = static_cast<MaterialType::MatType*>(MALLOC64(GRIDSIZE3 * sizeof(MaterialType::MatType)));
-	memset(grid, MaterialType::NONE, GRIDSIZE3 * sizeof(MaterialType::MatType));
+	LoadModel("assets/teapot.vox");
 	//GenerateSomeNoise();
 }
 
-// a helper function to load a magica voxel scene given a filename.
-void Scene::load_and_assign_vox_scene(const char* filename, uint32_t scene_read_flags = 0)
+// a helper function to load a magica voxel scene given a filename from https://github.com/jpaver/opengametools/blob/master/demo/demo_vox.cpp
+void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 {
 	// open the file
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -176,37 +181,72 @@ void Scene::load_and_assign_vox_scene(const char* filename, uint32_t scene_read_
 	fclose(fp);
 
 	// construct the scene from the buffer
-	const ogt_vox_scene* scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags);
-
+	const auto scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->models[0];
+	//created using chatgpt promts
 	// Assign colors based on the loaded scene
-	for (int x = 0; x < scene->x; ++x)
+	// Define scaling factors for each dimension
+	float scaleX = 1.0f; // Scale factor for X dimension (modify as needed)
+	float scaleY = 1.0f; // Scale factor for Y dimension (modify as needed)
+	float scaleZ = 1.0f;
+	for (uint32_t x = 0; x < scene->size_x; ++x)
 	{
-		for (int y = 0; y < scene->size_y; ++y)
+		for (uint32_t y = 0; y < scene->size_y; ++y)
 		{
-			for (int z = 0; z < scene->size_z; ++z)
+			for (uint32_t z = 0; z < scene->size_z; ++z)
 			{
+				// Calculate the scaled position
+				// Calculate the scaled position
+				const int scaledX = static_cast<int>((static_cast<float>(x) *
+					scaleX));
+				const int scaledY = static_cast<int>(static_cast<float>(y) *
+					scaleY);
+				const int scaledZ = static_cast<int>(static_cast<float>(z) *
+					scaleZ);
+
+
 				// Assume each voxel has a color index, and map that to MatType
-				MatType color;
-				// Example: color assignment logic based on voxel properties
-				// Replace this with your own logic based on the loaded scene
-				uint8_t voxel_color_index = scene->voxels[x][y][z].color_index;
+				MaterialType::MatType color;
+				// Calculate index into voxel_data based on the current position
+				uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
+				// Access color index from voxel_data
+				uint8_t voxel_color_index = (scene->voxel_data[index]);
 				// Map voxel color index to MatType
 				switch (voxel_color_index)
 				{
-				case 0: color = DIFFUSE_WHITE;
+				case MaterialType::DIFFUSE_RED:
+					color = MaterialType::DIFFUSE_RED;
+
 					break;
-				case 1: color = DIFFUSE_RED;
+				case MaterialType::DIFFUSE_BLUE:
+					color = MaterialType::DIFFUSE_BLUE;
+
 					break;
-				case 2: color = DIFFUSE_BLUE;
+				case MaterialType::DIFFUSE_GREEN:
+					color = MaterialType::DIFFUSE_GREEN;
+
 					break;
-				case 3: color = DIFFUSE_GREEN;
+				case MaterialType::MIRROR_HIGH_REFLECTIVITY:
+					color = MaterialType::MIRROR_HIGH_REFLECTIVITY;
+
 					break;
-				// Add more cases as needed
-				default: color = NONE;
+				case MaterialType::MIRROR_MID_REFLECTIVITY:
+					color = MaterialType::MIRROR_MID_REFLECTIVITY;
+
+					break;
+				case MaterialType::MIRROR_LOW_REFLECTIVITY:
+					color = MaterialType::MIRROR_LOW_REFLECTIVITY;
+
+					break;
+				case MaterialType::PARTIAL_MIRROR:
+					color = MaterialType::PARTIAL_MIRROR;
+
+					break;
+				case 0:
+					color = MaterialType::NONE;
 					break;
 				}
 				// Set the color at position (x, y, z)
-				Set(x, y, z, color);
+				Set(scaledX, scaledY, scaledZ, color);
 			}
 		}
 	}

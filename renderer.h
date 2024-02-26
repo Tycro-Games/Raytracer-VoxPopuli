@@ -74,7 +74,7 @@ namespace Tmpl8
 		Scene mainScene;
 		Camera camera;
 		float frqGenerationPerlinNoise = .03f;
-		float HDRLightContribution = .5f;
+		float HDRLightContribution = 1.5f;
 		//materials
 		std::vector<shared_ptr<DiffuseMaterial>> diffuseMaterials;
 		std::vector<shared_ptr<ReflectivityMaterial>> reflectivityMaterials;

@@ -447,7 +447,7 @@ void InitRandomSeedThread::Main()
 	std::thread::id threadId = std::this_thread::get_id();
 
 	// Convert std::thread::id to uint
-	const size_t id = std::hash<std::thread::id>{}(threadId);
+	const uint id = static_cast<uint>(std::hash<std::thread::id>{}(threadId));
 
 	InitSeed(id);
 }

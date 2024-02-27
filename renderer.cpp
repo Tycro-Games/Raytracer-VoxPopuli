@@ -243,29 +243,30 @@ void Renderer::Init()
 	//Lighting set-up
 	SetUpLights();
 	//Material set-up
-	const auto materialDifWhite = make_shared<DiffuseMaterial>(float3(1, 1, 1));
-	const auto materialDifRed = make_shared<DiffuseMaterial>(float3(1, 0, 0));
-	const auto materialDifBlue = make_shared<DiffuseMaterial>(float3(0, 0, 1));
-	const auto materialDifGreen = make_shared<DiffuseMaterial>(float3(0, 1, 0));
-	diffuseMaterials.push_back(materialDifWhite);
-	diffuseMaterials.push_back(materialDifRed);
-	diffuseMaterials.push_back(materialDifBlue);
-	diffuseMaterials.push_back(materialDifGreen);
+	const auto materialDifWhite = make_shared<ReflectivityMaterial>(float3(1, 1, 1));
+	const auto materialDifRed = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
+	const auto materialDifBlue = make_shared<ReflectivityMaterial>(float3(0, 0, 1));
+	const auto materialDifGreen = make_shared<ReflectivityMaterial>(float3(0, 1, 0), 0.0f);
+	const auto partialMetal = make_shared<ReflectivityMaterial>(float3(1, 1, 1), 0.75f);
+
 	//Mirror
 	const auto materialDifReflectivity = make_shared<ReflectivityMaterial>(float3(1));
 	const auto materialDifRefMid = make_shared<ReflectivityMaterial>(float3(0, 1, 1), 0.5f);
 	const auto materialDifRefLow = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
 	//partial mirror
-	const auto partialMirror = make_shared<ReflectivityMaterial>(float3(1, 1, 1), 0.75f);
 
-	reflectivityMaterials.push_back(materialDifReflectivity);
-	reflectivityMaterials.push_back(materialDifRefMid);
-	reflectivityMaterials.push_back(materialDifRefLow);
-	reflectivityMaterials.push_back(partialMirror);
-
-	for (auto& mat : diffuseMaterials)
+	nonMetalMaterials.push_back(materialDifWhite);
+	nonMetalMaterials.push_back(materialDifRed);
+	nonMetalMaterials.push_back(materialDifBlue);
+	nonMetalMaterials.push_back(materialDifGreen);
+	nonMetalMaterials.push_back(partialMetal);
+	//metals
+	metalMaterials.push_back(materialDifReflectivity);
+	metalMaterials.push_back(materialDifRefMid);
+	metalMaterials.push_back(materialDifRefLow);
+	for (auto& mat : nonMetalMaterials)
 		mainScene.materials.push_back(mat);
-	for (auto& mat : reflectivityMaterials)
+	for (auto& mat : metalMaterials)
 		mainScene.materials.push_back(mat);
 }
 
@@ -317,42 +318,46 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 	switch (ray.indexMaterial)
 	{
-	case MaterialType::MIRROR_MID_REFLECTIVITY:
-	case MaterialType::MIRROR_HIGH_REFLECTIVITY:
-	case MaterialType::MIRROR_LOW_REFLECTIVITY:
+	//metals
+	case MaterialType::METAL_MID:
+	case MaterialType::METAL_HIGH:
+	case MaterialType::METAL_LOW:
 		{
-			// lerp between diffuse and perfect mirror from Sebastian Lague: https://www.youtube.com/watch?v=Qz0KTGYJtUk
 			float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
-			float3 randomDirection = normalize(RandomHemisphereDirection(N));
 			newRay = Ray{
-				OffsetRay(I, N), normalize(lerp(randomDirection, reflectedDirection, ray.GetReflectivity(mainScene)))
+				OffsetRay(I, N), reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 			};
 			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
 		}
-	case MaterialType::PARTIAL_MIRROR:
+
+	//non-metal
+	case MaterialType::NON_METAL_WHITE:
+	case MaterialType::NON_METAL_PINK:
+	case MaterialType::NON_METAL_RED:
+	case MaterialType::NON_METAL_BLUE:
+	case MaterialType::NON_METAL_GREEN:
 		{
-			// lerp between diffuse and perfect mirror from Sebastian Lague: https://www.youtube.com/watch?v=Qz0KTGYJtUk
-			float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
-			float3 randomDirection = normalize(RandomHemisphereDirection(N));
-			float factor = ray.GetReflectivity(mainScene);
-			// Add lighting
-			float3 incLight{0};
-			Illumination(ray, incLight);
-			newRay = Ray{
-				OffsetRay(I, N), normalize(lerp(randomDirection, reflectedDirection, factor))
-			};
-			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) * factor + incLight * (1.f - factor);
+			float3 color{0};
+
+			if (RandomFloat() < ray.GetRoughness(mainScene))
+			{
+				float3 incLight{0};
+				float3 randomDirection = DiffuseReflection(N);
+				Illumination(ray, incLight);
+				newRay = Ray{OffsetRay(I, N), randomDirection};
+				color += incLight;
+				color += Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
+			}
+			else
+			{
+				float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
+				newRay = Ray{
+					OffsetRay(I, N), reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
+				};
+				color += Trace(newRay, depth - 1);
+			}
+			return color;
 		}
-	case MaterialType::DIFFUSE_WHITE:
-	case MaterialType::DIFFUSE_RED:
-	case MaterialType::DIFFUSE_BLUE:
-	case MaterialType::DIFFUSE_GREEN:
-		// Add lighting
-		float3 incLight{0};
-		Illumination(ray, incLight);
-	// DIFFUSE
-		newRay = Ray{OffsetRay(I, N), normalize(RandomHemisphereDirection(N))};
-		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
 	case MaterialType::NONE:
 		return skyDome.SampleSky(ray);
 	}
@@ -590,12 +595,19 @@ void Renderer::HandleImguiGeneral()
 
 void Renderer::HandleImguiMaterials()
 {
-	if (ImGui::CollapsingHeader("Diffuse"))
+	int index = 0;
+
+	if (ImGui::CollapsingHeader("Non-Metals"))
 	{
-		int index = 0;
-		for (auto& material : diffuseMaterials)
+		for (auto& material : nonMetalMaterials)
 		{
-			ImGui::ColorEdit3(("Diffuse albedo:" + to_string(index)).c_str(), material->albedo.cell);
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+			if (ImGui::IsItemEdited())
+			{
+				ResetAccumulator();
+			}
+			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+			                   1.0f);
 			index++;
 			if (ImGui::IsItemEdited())
 			{
@@ -603,19 +615,16 @@ void Renderer::HandleImguiMaterials()
 			}
 		}
 	}
-
-
-	if (ImGui::CollapsingHeader("Mirror"))
+	if (ImGui::CollapsingHeader("Metals"))
 	{
-		int index = 0;
-		for (auto& material : reflectivityMaterials)
+		for (auto& material : metalMaterials)
 		{
-			ImGui::ColorEdit3(("Mirror albedo:" + to_string(index)).c_str(), material->albedo.cell);
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
 			if (ImGui::IsItemEdited())
 			{
 				ResetAccumulator();
 			}
-			ImGui::SliderFloat(("Mirror reflectivity :" + to_string(index)).c_str(), &material->reflectivity, 0,
+			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
 			                   1.0f);
 			index++;
 			if (ImGui::IsItemEdited())

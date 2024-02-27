@@ -51,9 +51,9 @@ float3 Ray::GetAlbedo(Scene& scene)
 	return scene.materials[indexMaterial]->GetAlbedo();
 }
 
-float Ray::GetReflectivity(Scene& scene) const
+float Ray::GetRoughness(Scene& scene) const
 {
-	return scene.materials[indexMaterial]->GetReflectivity();
+	return scene.materials[indexMaterial]->GetRoughness();
 }
 
 
@@ -122,22 +122,22 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 				}
 				else if (n < 0.2)
 				{
-					color = MaterialType::DIFFUSE_RED;
+					color = MaterialType::NON_METAL_RED;
 				}
 				else if (n < 0.17f)
 				{
-					color = MaterialType::PARTIAL_MIRROR;
+					color = MaterialType::NON_METAL_WHITE;
 				}
 				else if (n < 0.3)
 				{
-					color = MaterialType::DIFFUSE_BLUE;
+					color = MaterialType::NON_METAL_BLUE;
 				}
 				else if (n < 0.5f)
-					color = MaterialType::MIRROR_HIGH_REFLECTIVITY;
+					color = MaterialType::METAL_HIGH;
 				else if (n < 0.7f)
-					color = MaterialType::MIRROR_MID_REFLECTIVITY;
+					color = MaterialType::METAL_MID;
 				else if (n < 0.9f)
-					color = MaterialType::MIRROR_LOW_REFLECTIVITY;
+					color = MaterialType::METAL_LOW;
 
 
 				Set(x, y, z, color); // Assuming Set function is defined elsewhere
@@ -209,42 +209,49 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 				// Calculate index into voxel_data based on the current position
 				const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
 				// Access color index from voxel_data
-				const uint8_t voxel_color_index = (scene->voxel_data[index]);
-				// Map voxel color index to MatType
-				switch (voxel_color_index)
+				uint8_t voxel_color_index = (scene->voxel_data[index]);
+				if (voxel_color_index == 0)
 				{
-				case MaterialType::DIFFUSE_RED:
-					color = MaterialType::DIFFUSE_RED;
-
-					break;
-				case MaterialType::DIFFUSE_BLUE:
-					color = MaterialType::DIFFUSE_BLUE;
-
-					break;
-				case MaterialType::DIFFUSE_GREEN:
-					color = MaterialType::DIFFUSE_GREEN;
-
-					break;
-				case MaterialType::MIRROR_HIGH_REFLECTIVITY:
-					color = MaterialType::MIRROR_HIGH_REFLECTIVITY;
-
-					break;
-				case MaterialType::MIRROR_MID_REFLECTIVITY:
-					color = MaterialType::MIRROR_MID_REFLECTIVITY;
-
-					break;
-				case MaterialType::MIRROR_LOW_REFLECTIVITY:
-					color = MaterialType::MIRROR_LOW_REFLECTIVITY;
-
-					break;
-				case MaterialType::PARTIAL_MIRROR:
-					color = MaterialType::PARTIAL_MIRROR;
-
-					break;
-				case 0:
-					color = MaterialType::NONE;
-					break;
+					voxel_color_index = MaterialType::NONE;
 				}
+				color = static_cast<MaterialType::MatType>(voxel_color_index);
+				//// Map voxel color index to MatType
+				//switch (voxel_color_index)
+				//{
+				//case MaterialType::NON_METAL_RED:
+				//	color = MaterialType::NON_METAL_RED;
+
+				//	break;
+				//case MaterialType::NON_METAL_BLUE:
+				//	color = MaterialType::NON_METAL_BLUE;
+
+				//	break;
+				//case MaterialType::NON_METAL_GREEN:
+				//	color = MaterialType::NON_METAL_GREEN;
+
+				//	break;
+				//case MaterialType::METAL_HIGH:
+				//	color = MaterialType::METAL_HIGH;
+
+				//	break;
+				//case MaterialType::METAL_MID:
+				//	color = MaterialType::METAL_MID;
+
+				//	break;
+				//case MaterialType::METAL_LOW:
+				//	color = MaterialType::METAL_LOW;
+
+				//	break;
+				//case MaterialType::NON_METAL_WHITE:
+				//	color = MaterialType::NON_METAL_WHITE;
+
+				//	break;
+				//case MaterialType::NONE:
+				//	color = MaterialType::NONE;
+				//	break;
+				//default:
+				//	break;
+				//}
 				// Set the color at position (x, y, z)
 				Set(scaledX, scaledY, scaledZ, color);
 			}

@@ -76,8 +76,8 @@ namespace Tmpl8
 		float frqGenerationPerlinNoise = .03f;
 		float HDRLightContribution = 1.5f;
 		//materials
-		std::vector<shared_ptr<DiffuseMaterial>> diffuseMaterials;
-		std::vector<shared_ptr<ReflectivityMaterial>> reflectivityMaterials;
+		std::vector<shared_ptr<ReflectivityMaterial>> metalMaterials;
+		std::vector<shared_ptr<ReflectivityMaterial>> nonMetalMaterials;
 
 		//std::vector<shared_ptr<DiffuseMaterial>> reflectiveMaterials;
 		//lights

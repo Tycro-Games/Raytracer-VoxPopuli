@@ -29,14 +29,14 @@ namespace MaterialType
 {
 	enum MatType
 	{
-		DIFFUSE_WHITE,
-		DIFFUSE_RED,
-		DIFFUSE_BLUE,
-		DIFFUSE_GREEN,
-		MIRROR_HIGH_REFLECTIVITY,
-		MIRROR_MID_REFLECTIVITY,
-		MIRROR_LOW_REFLECTIVITY,
-		PARTIAL_MIRROR,
+		NON_METAL_WHITE,
+		NON_METAL_RED,
+		NON_METAL_BLUE,
+		NON_METAL_GREEN,
+		NON_METAL_PINK,
+		METAL_HIGH,
+		METAL_MID,
+		METAL_LOW,
 		NONE
 	};
 }
@@ -71,7 +71,7 @@ namespace Tmpl8
 		float3 UintToFloat3(uint col) const;
 		float UintToFloat3EmmisionStrength(uint col) const;
 		float3 GetAlbedo(Scene& scene);
-		float GetReflectivity(Scene& scene) const;
+		float GetRoughness(Scene& scene) const;
 		float GetRefractivity(const float3& I) const; // TODO: implement
 		//E reflected = E incoming multiplied by C material
 

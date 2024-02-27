@@ -17,6 +17,7 @@
 // https://github.com/jbikker for examples.
 
 #pragma once
+#include "common.h"
 
 namespace Tmpl8
 {
@@ -2480,12 +2481,29 @@ inline float3 cross(const float3& a, const float3& b)
 	return make_float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 }
 
-inline float3 diffusereflection(const float3 N, uint& seed)
+// [CREDITS] https://datagenetics.com/blog/january32020/index.html
+inline float3 RandomSphereSample()
+{
+	const float theta = RandomFloat() * 2 * PI;
+	const float phi = RandomFloat() * PI;
+	const float r = RandomFloat();
+	const float x = r * sin(phi) * cos(theta);
+	const float y = r * sin(phi) * sin(theta);
+	const float z = r * cos(phi);
+	return {x, y, z};
+}
+
+inline float3 RandomLambertianReflectionVector(const float3& N)
+{
+	return N + RandomSphereSample();
+}
+
+inline float3 DiffuseReflection(const float3 N)
 {
 	float3 R;
 	do
 	{
-		R = make_float3(RandomFloat(seed) * 2 - 1, RandomFloat(seed) * 2 - 1, RandomFloat(seed) * 2 - 1);
+		R = make_float3(RandomFloat() * 2 - 1, RandomFloat() * 2 - 1, RandomFloat() * 2 - 1);
 	}
 	while (dot(R, R) > 1);
 	if (dot(R, N) < 0) R *= -1.0f;

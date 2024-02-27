@@ -258,6 +258,7 @@ uint4::uint4(const uint3& a, const uint d)
 	w = d;
 }
 
+
 mat4 operator*(const mat4& a, const mat4& b)
 {
 	mat4 r;

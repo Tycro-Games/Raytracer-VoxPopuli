@@ -24,17 +24,23 @@ namespace Tmpl8
 
 		Ray GetPrimaryRay(const float x, const float y)
 		{
-			// calculate pixel position on virtual screen plane
+			//conceptually used https://youtu.be/Qz0KTGYJtUk?si=9en1nLsgxqQyoGW2&t=2113
 			const float u = x * (1.0f / SCRWIDTH);
 			const float v = y * (1.0f / SCRHEIGHT);
 			const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
 
-			return Ray(camPos, P - camPos);
-			// Note: no need to normalize primary rays in a pure voxel world
-			// TODO: 
-			// - if we have other primitives as well, we *do* need to normalize!
-			// - there are far cooler camera models, e.g. try 'Panini projection'.
+			const float jitterX = defocusJitter.x * (RandomFloat() - 0.5f);
+			const float jitterY = defocusJitter.y * (RandomFloat() - 0.5f);
+
+			const float3 focalPoint = camPos + focalDistance * normalize(P - camPos);
+			const float3 rayOrigin = camPos + float3{jitterX * topRight.x, jitterY * topRight.y, 0.0f};
+
+			const float3 rayDirection = (focalPoint - rayOrigin);
+
+			// Return the primary ray
+			return {rayOrigin, rayDirection};
 		}
+
 
 		bool HandleInput(const float t)
 		{
@@ -91,5 +97,7 @@ namespace Tmpl8
 		float3 camPos, camTarget;
 		float3 topLeft, topRight, bottomLeft;
 		const float stopAngle = 0.8f;
+		float focalDistance{0};
+		float2 defocusJitter{0, 0};
 	};
 }

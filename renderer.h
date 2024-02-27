@@ -64,7 +64,7 @@ namespace Tmpl8
 		//}
 
 		//Cherno multithreading  https://www.youtube.com/watch?v=46ddlUImiQA
-		std::vector<uint> vertIterator, horizontalIterator;
+		std::vector<uint32_t> vertIterator;
 		// data members
 		int2 mousePos;
 		int32_t maxBounces = 5;

@@ -217,7 +217,6 @@ float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, DirectionalLig
 void Renderer::ResetAccumulator()
 {
 	numRenderedFrames = 0;
-	//memset(accumulator, 0, SCRWIDTH * SCRHEIGHT * 16);
 }
 
 void Renderer::Init()
@@ -237,11 +236,8 @@ void Renderer::Init()
 	//init multithreading
 	InitMultithreading();
 	vertIterator.resize(SCRHEIGHT);
-	horizontalIterator.resize(SCRWIDTH);
 	for (int i = 0; i < SCRHEIGHT; i++)
 		vertIterator[i] = i;
-	for (int i = 0; i < SCRWIDTH; i++)
-		horizontalIterator[i] = i;
 
 
 	//Lighting set-up
@@ -308,52 +304,61 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		return {0};
 	}
 	mainScene.FindNearest(ray);
-	//break early if no intersection
-
+	// Break early if no intersection
 	if (ray.indexMaterial == MaterialType::NONE)
 	{
 		return skyDome.SampleSky(ray);
 	}
 
-
 	const float3 N = ray.GetNormal();
 	const float3 I = ray.IntersectionPoint();
 
 	Ray newRay;
-	//MIRROR_HIGH_REFLECTIVITY
-	if (ray.indexMaterial == MaterialType::MIRROR_MID_REFLECTIVITY || ray.indexMaterial ==
-		MaterialType::MIRROR_HIGH_REFLECTIVITY || ray.indexMaterial == MaterialType::MIRROR_LOW_REFLECTIVITY)
+
+	switch (ray.indexMaterial)
 	{
-		// lerp between diffuse and perfect mirror from Sebastian Lague: https://www.youtube.com/watch?v=Qz0KTGYJtUk
-		float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
-		float3 randomDirection = normalize(RandomHemisphereDirection(N));
-		newRay = Ray{
-			OffsetRay(I, N), normalize(lerp(randomDirection, reflectedDirection, ray.GetReflectivity(mainScene)))
-		};
-		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
+	case MaterialType::MIRROR_MID_REFLECTIVITY:
+	case MaterialType::MIRROR_HIGH_REFLECTIVITY:
+	case MaterialType::MIRROR_LOW_REFLECTIVITY:
+		{
+			// lerp between diffuse and perfect mirror from Sebastian Lague: https://www.youtube.com/watch?v=Qz0KTGYJtUk
+			float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
+			float3 randomDirection = normalize(RandomHemisphereDirection(N));
+			newRay = Ray{
+				OffsetRay(I, N), normalize(lerp(randomDirection, reflectedDirection, ray.GetReflectivity(mainScene)))
+			};
+			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
+		}
+	case MaterialType::PARTIAL_MIRROR:
+		{
+			// lerp between diffuse and perfect mirror from Sebastian Lague: https://www.youtube.com/watch?v=Qz0KTGYJtUk
+			float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
+			float3 randomDirection = normalize(RandomHemisphereDirection(N));
+			float factor = ray.GetReflectivity(mainScene);
+			// Add lighting
+			float3 incLight{0};
+			Illumination(ray, incLight);
+			newRay = Ray{
+				OffsetRay(I, N), normalize(lerp(randomDirection, reflectedDirection, factor))
+			};
+			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) * factor + incLight * (1.f - factor);
+		}
+	case MaterialType::DIFFUSE_WHITE:
+	case MaterialType::DIFFUSE_RED:
+	case MaterialType::DIFFUSE_BLUE:
+	case MaterialType::DIFFUSE_GREEN:
+		// Add lighting
+		float3 incLight{0};
+		Illumination(ray, incLight);
+	// DIFFUSE
+		newRay = Ray{OffsetRay(I, N), normalize(RandomHemisphereDirection(N))};
+		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
+	case MaterialType::NONE:
+		return skyDome.SampleSky(ray);
 	}
-	//add lighting
-	float3 incLight{0};
-	Illumination(ray, incLight);
 
-	//partial mirror
-	if (ray.indexMaterial == MaterialType::PARTIAL_MIRROR)
-	{
-		// lerp between diffuse and perfect mirror from Sebastian Lague: https://www.youtube.com/watch?v=Qz0KTGYJtUk
-		float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
-		float3 randomDirection = normalize(RandomHemisphereDirection(N));
-		float factor = ray.GetReflectivity(mainScene);
-		newRay = Ray{
-			OffsetRay(I, N), normalize(lerp(randomDirection, reflectedDirection, factor))
-		};
-
-		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) * factor + incLight * (1.f - factor);
-	}
-	//DIFFUSE
-	newRay = Ray{OffsetRay(I, N), normalize(RandomHemisphereDirection(N))};
-
-
-	return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
+	//fixes a warning
+	return {0};
 }
 
 // -----------------------------------------------------------
@@ -379,10 +384,13 @@ void Renderer::Tick(float deltaTime)
 			         {
 				         //Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
 				         //AA
-				         const float randomX = (RandomFloat() * 2 - 1) * .5f;
-				         const float randomY = (RandomFloat() * 2 - 1) * .5f;
-				         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomX,
-				                                               static_cast<float>(y) + randomY);
+				         const float randomXDir = RandomFloat() - .5f;
+				         const float randomYDir = RandomFloat() - .5f;
+
+				         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+				                                               static_cast<float>(y) + randomYDir);
+				         /* primaryRay.O.x += randomXOri;
+				          primaryRay.O.y += randomYOri;*/
 
 				         totalLight += Trace(primaryRay, maxBounces);
 			         }
@@ -553,6 +561,16 @@ void Renderer::HandleImguiGeneral()
 		ResetAccumulator();
 	}
 	ImGui::SliderInt("Max Rays per Pixel", &maxRayPerPixel, 1, 200);
+	if (ImGui::IsItemEdited())
+	{
+		ResetAccumulator();
+	}
+	ImGui::SliderFloat2("DOF strength", camera.defocusJitter.cell, 0.0f, 2.0f);
+	if (ImGui::IsItemEdited())
+	{
+		ResetAccumulator();
+	}
+	ImGui::DragFloat("Focal Point distance", &camera.focalDistance, .1f, -1.0f, 100.0f);
 	if (ImGui::IsItemEdited())
 	{
 		ResetAccumulator();

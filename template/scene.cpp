@@ -107,7 +107,7 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 		{
 			for (int x = 0; x < WORLDSIZE; x++)
 			{
-				float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+				const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
 				// Sample noise from pre-generated vector
 				MaterialType::MatType color = MaterialType::NONE;
 
@@ -172,7 +172,7 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 
 	// get the buffer size which matches the size of the file
 	fseek(fp, 0, SEEK_END);
-	uint32_t buffer_size = ftell(fp);
+	const uint32_t buffer_size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
 	// load the file into a memory buffer
@@ -185,9 +185,9 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 	//created using chatgpt promts
 	// Assign colors based on the loaded scene
 	// Define scaling factors for each dimension
-	float scaleX = 1.0f; // Scale factor for X dimension (modify as needed)
-	float scaleY = 1.0f; // Scale factor for Y dimension (modify as needed)
-	float scaleZ = 1.0f;
+	const float scaleX = 1.0f; // Scale factor for X dimension (modify as needed)
+	const float scaleY = 1.0f; // Scale factor for Y dimension (modify as needed)
+	const float scaleZ = 1.0f;
 	for (uint32_t x = 0; x < scene->size_x; ++x)
 	{
 		for (uint32_t y = 0; y < scene->size_y; ++y)
@@ -205,11 +205,11 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 
 
 				// Assume each voxel has a color index, and map that to MatType
-				MaterialType::MatType color;
+				MaterialType::MatType color = MaterialType::NONE;
 				// Calculate index into voxel_data based on the current position
-				uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
+				const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
 				// Access color index from voxel_data
-				uint8_t voxel_color_index = (scene->voxel_data[index]);
+				const uint8_t voxel_color_index = (scene->voxel_data[index]);
 				// Map voxel color index to MatType
 				switch (voxel_color_index)
 				{

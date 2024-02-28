@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include <execution>
+#include <filesystem>
 
 // YOU GET:
 // 1. A fast voxel renderer in plain C/C++
@@ -80,7 +81,7 @@ void Renderer::SetUpLights()
 {
 }
 
-float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, PointLightData lightData)
+float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData& lightData)
 {
 	//Getting the intersection point
 	const float3 intersectionPoint = ray.O + ray.t * ray.D;
@@ -111,7 +112,7 @@ float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, PointLightData light
 	return lightIntensity * k;
 }
 
-float3 Renderer::SpotLightEvaluate(Ray& ray, Scene& scene, SpotLightData lightData)
+float3 Renderer::SpotLightEvaluate(Ray& ray, Scene& scene, const SpotLightData& lightData)
 {
 	const float3 intersectionPoint = ray.O + ray.t * ray.D;
 	const float3 dir = lightData.position - intersectionPoint;
@@ -139,7 +140,7 @@ float3 Renderer::SpotLightEvaluate(Ray& ray, Scene& scene, SpotLightData lightDa
 	return lightIntensity * k * alphaCutOff;
 }
 
-float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, SphereAreaLightData lightData)
+float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const
 {
 	const float3 intersectionPoint = ray.O + ray.t * ray.D;
 	const float3 normal = ray.GetNormal();
@@ -187,7 +188,7 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, SphereAreaLightData
 	return incomingLight * k;
 }
 
-float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, DirectionalLightData lightData)
+float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData)
 {
 	const float3 intersectionPoint = ray.O + ray.t * ray.D;
 	const float3 dir = -lightData.direction;
@@ -238,7 +239,13 @@ void Renderer::Init()
 	vertIterator.resize(SCRHEIGHT);
 	for (int i = 0; i < SCRHEIGHT; i++)
 		vertIterator[i] = i;
-
+	for (const auto& entry : std::filesystem::directory_iterator("assets"))
+	{
+		if (entry.path().extension() == ".vox")
+		{
+			voxFiles.push_back(entry.path().filename().string());
+		}
+	}
 
 	//Lighting set-up
 	SetUpLights();
@@ -254,6 +261,7 @@ void Renderer::Init()
 	const auto materialDifRefMid = make_shared<ReflectivityMaterial>(float3(0, 1, 1), 0.5f);
 	const auto materialDifRefLow = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
 	//partial mirror
+	const auto glass = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
 
 	nonMetalMaterials.push_back(materialDifWhite);
 	nonMetalMaterials.push_back(materialDifRed);
@@ -264,9 +272,14 @@ void Renderer::Init()
 	metalMaterials.push_back(materialDifReflectivity);
 	metalMaterials.push_back(materialDifRefMid);
 	metalMaterials.push_back(materialDifRefLow);
+
+	dielectricsMaterials.push_back(glass);
+
 	for (auto& mat : nonMetalMaterials)
 		mainScene.materials.push_back(mat);
 	for (auto& mat : metalMaterials)
+		mainScene.materials.push_back(mat);
+	for (auto& mat : dielectricsMaterials)
 		mainScene.materials.push_back(mat);
 }
 
@@ -358,6 +371,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			}
 			return color;
 		}
+	case MaterialType::GLASS:
+		//code for glass
+		break;
 	case MaterialType::NONE:
 		return skyDome.SampleSky(ray);
 	}
@@ -409,8 +425,10 @@ void Renderer::Tick(float deltaTime)
 			         float weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
 			         //we accumulate
 			         float4 pixel = accumulator[x + pitch] * (1 - weight) + newPixel * weight;
-			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 			         accumulator[x + pitch] = pixel;
+
+			         pixel = ApplyReinhardJodie(pixel);
+			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		         }
 	         });
 
@@ -428,6 +446,28 @@ void Renderer::Tick(float deltaTime)
 	{
 		ResetAccumulator();
 	}
+}
+
+//this is from Lynn's code
+// [CREDITS] Article on tonemapping https://64.github.io/tonemapping/#aces
+float3 Renderer::ApplyReinhardJodie(const float3& color)
+{
+	const float luminance{GetLuminance(color)};
+	const float3 reinhardAdjustment{color / (1.0f + color)};
+	const float3 luminanceAdjustment{color / (1.0f + luminance)};
+
+	return
+	{
+		lerp(luminanceAdjustment.x, reinhardAdjustment.x, reinhardAdjustment.x),
+		lerp(luminanceAdjustment.y, reinhardAdjustment.y, reinhardAdjustment.y),
+		lerp(luminanceAdjustment.z, reinhardAdjustment.z, reinhardAdjustment.z)
+	};
+}
+
+// [CREDITS] Article on tonemapping https://64.github.io/tonemapping/#aces
+float Renderer::GetLuminance(const float3& color)
+{
+	return dot(color, {0.2126f, 0.7152f, 0.0722f});
 }
 
 void Renderer::HandleImguiPointLights()
@@ -591,6 +631,33 @@ void Renderer::HandleImguiGeneral()
 		mainScene.GenerateSomeNoise(frqGenerationPerlinNoise);
 		ResetAccumulator();
 	}
+	//from Sven 232380
+	// Read all the .vox files in the assets folder and store them in a vector
+
+
+	// Dropdown for selecting .vox file
+	static int selectedItem = 0; // Index of the selected item in the combo box
+
+	std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
+	for (const auto& file : voxFiles)
+	{
+		cStrVoxFiles.push_back(file.c_str());
+	}
+
+	ImGui::Combo("Vox Files", &selectedItem, cStrVoxFiles.data(), static_cast<int>(cStrVoxFiles.size()));
+	ImGui::SliderFloat3("Vox model size", mainScene.scaleModel.cell, 0.0f, 1.0f);
+	if (ImGui::IsItemEdited())
+	{
+		ResetAccumulator();
+	}
+
+	if (ImGui::Button("Load Vox File") && selectedItem >= 0)
+	{
+		// Load the selected .vox file
+		const std::string path = "assets/" + voxFiles[selectedItem];
+		mainScene.LoadModel(path.c_str());
+		ResetAccumulator();
+	}
 }
 
 void Renderer::HandleImguiMaterials()
@@ -618,6 +685,24 @@ void Renderer::HandleImguiMaterials()
 	if (ImGui::CollapsingHeader("Metals"))
 	{
 		for (auto& material : metalMaterials)
+		{
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+			if (ImGui::IsItemEdited())
+			{
+				ResetAccumulator();
+			}
+			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+			                   1.0f);
+			index++;
+			if (ImGui::IsItemEdited())
+			{
+				ResetAccumulator();
+			}
+		}
+	}
+	if (ImGui::CollapsingHeader("Dielectrics"))
+	{
+		for (auto& material : dielectricsMaterials)
 		{
 			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
 			if (ImGui::IsItemEdited())

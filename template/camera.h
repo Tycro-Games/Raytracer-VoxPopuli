@@ -22,7 +22,7 @@ namespace Tmpl8
 			ahead = normalize(camTarget - camPos);
 		}
 
-		Ray GetPrimaryRay(const float x, const float y)
+		Ray GetPrimaryRay(const float x, const float y) const
 		{
 			//conceptually used https://youtu.be/Qz0KTGYJtUk?si=9en1nLsgxqQyoGW2&t=2113
 			const float u = x * (1.0f / SCRWIDTH);
@@ -31,11 +31,13 @@ namespace Tmpl8
 
 			const float jitterX = defocusJitter.x * (RandomFloat() - 0.5f);
 			const float jitterY = defocusJitter.y * (RandomFloat() - 0.5f);
+			//Remi fixed this implementation
+
 
 			const float3 focalPoint = camPos + focalDistance * normalize(P - camPos);
-			const float3 rayOrigin = camPos + float3{jitterX * topRight.x, jitterY * topRight.y, 0.0f};
+			const float3 rayOrigin = camPos + jitterX * right + jitterY * up;
 
-			const float3 rayDirection = (focalPoint - rayOrigin);
+			const float3 rayDirection = normalize(focalPoint - rayOrigin);
 
 			// Return the primary ray
 			return {rayOrigin, rayDirection};
@@ -48,8 +50,8 @@ namespace Tmpl8
 			const float speed = 0.0025f * t;
 			ahead = normalize(camTarget - camPos);
 			const float3 tmpUp(0, 1, 0);
-			float3 right = normalize(cross(tmpUp, ahead));
-			float3 up = normalize(cross(ahead, right));
+			right = normalize(cross(tmpUp, ahead));
+			up = normalize(cross(ahead, right));
 			bool changed = false;
 			if (IsKeyDown(GLFW_KEY_A)) camPos -= speed * 2 * right, changed = true;
 			if (IsKeyDown(GLFW_KEY_D)) camPos += speed * 2 * right, changed = true;
@@ -93,7 +95,7 @@ namespace Tmpl8
 		}
 
 		static constexpr float aspect = static_cast<float>(SCRWIDTH) / static_cast<float>(SCRHEIGHT);
-		float3 ahead;
+		float3 ahead, right, up;
 		float3 camPos, camTarget;
 		float3 topLeft, topRight, bottomLeft;
 		const float stopAngle = 0.8f;

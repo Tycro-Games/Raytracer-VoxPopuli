@@ -6,6 +6,7 @@ namespace Tmpl8
 	constexpr size_t AREA_LIGHTS = 1;
 	constexpr size_t SPOT_LIGHTS = 2;
 	constexpr size_t MAX_LIGHT_TYPES = 4;
+	//+1 for directional light
 	constexpr size_t LIGHT_COUNT = POINT_LIGHTS + SPOT_LIGHTS + AREA_LIGHTS + 1;
 
 	class Renderer : public TheApp
@@ -13,16 +14,18 @@ namespace Tmpl8
 	public:
 		void InitMultithreading();
 		void SetUpLights();
-		float3 PointLightEvaluate(Ray& ray, Scene& scene, PointLightData lightData);
-		float3 SpotLightEvaluate(Ray& ray, Scene& scene, SpotLightData lightData);
-		float3 AreaLightEvaluation(Ray& ray, Scene& scene, SphereAreaLightData lightData);
-		float3 DirectionalLightEvaluate(Ray& ray, Scene& scene, DirectionalLightData lightData);
+		float3 PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData& lightData);
+		float3 SpotLightEvaluate(Ray& ray, Scene& scene, const SpotLightData& lightData);
+		float3 AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const;
+		static float3 DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData);
 		void ResetAccumulator();
 		// game flow methods
 		void Init() override;
 		void Illumination(Ray& ray, float3& incLight);
 		float3 Trace(Ray& ray, int depth);
 		void Tick(float deltaTime) override;
+		float3 ApplyReinhardJodie(const float3& color);
+		float GetLuminance(const float3& color);
 		void HandleImguiPointLights();
 		void HandleImguiAreaLights();
 		void HandleImguiSpotLights();
@@ -78,6 +81,7 @@ namespace Tmpl8
 		//materials
 		std::vector<shared_ptr<ReflectivityMaterial>> metalMaterials;
 		std::vector<shared_ptr<ReflectivityMaterial>> nonMetalMaterials;
+		std::vector<shared_ptr<ReflectivityMaterial>> dielectricsMaterials;
 
 		//std::vector<shared_ptr<DiffuseMaterial>> reflectiveMaterials;
 		//lights
@@ -87,9 +91,11 @@ namespace Tmpl8
 		SkyDome skyDome;
 		DirectionalLight dirLight;
 
-		std::vector<Light*> lights;
 		uint64_t numRenderedFrames = 0;
 		int32_t numCheckShadowsAreaLight = 3;
+		// Get a list of .vox files in the assets folder
+		std::vector<std::string> voxFiles;
+
 
 		//BVH
 		BasicBVH bvh;

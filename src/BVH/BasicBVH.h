@@ -1,14 +1,24 @@
 #pragma once
 //following this tutorial: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
-struct Tri { float3 vertex0, vertex1, vertex2; float3 centroid; };
+struct Tri
+{
+	float3 vertex0, vertex1, vertex2;
+	float3 centroid;
+};
+
 static constexpr int countTri = 64;
 
 struct BVHNode
 {
 	float3 aabbMin, aabbMax;
 	uint leftFirst, triCount;
-    bool isLeaf() { return triCount > 0; }
+
+	bool isLeaf() const
+	{
+		return triCount > 0;
+	}
 };
+
 class BasicBVH
 {
 public:
@@ -22,9 +32,9 @@ public:
 	void UpdateNodeBounds(uint nodeIdx);
 	void Subdivide(uint nodeIdx);
 	Tri tri[countTri];
-    uint triIdx[countTri];
-    BVHNode bvhNode[countTri * 2 - 1];
-    uint rootNodeIdx = 0, nodesUsed = 1;
+	uint triIdx[countTri];
+	BVHNode bvhNode[countTri * 2 - 1];
+	uint rootNodeIdx = 0, nodesUsed = 1;
+
 private:
 };
-

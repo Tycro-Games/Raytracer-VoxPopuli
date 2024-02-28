@@ -27,7 +27,7 @@ constexpr auto WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x51
 
 namespace MaterialType
 {
-	enum MatType
+	enum MatType //:uint8_t
 	{
 		NON_METAL_WHITE,
 		NON_METAL_RED,
@@ -37,6 +37,7 @@ namespace MaterialType
 		METAL_HIGH,
 		METAL_MID,
 		METAL_LOW,
+		GLASS,
 		NONE
 	};
 }
@@ -50,17 +51,7 @@ namespace Tmpl8
 	public:
 		Ray() = default;
 
-		Ray(const float3 origin, const float3 direction, const float rayLength = 1e34f, const int = 0)
-			: O(origin), t(rayLength)
-		{
-			D = normalize(direction);
-			// calculate reciprocal ray direction for triangles and AABBs
-			// TODO: prevent NaNs - or don't
-			rD = float3(1 / D.x, 1 / D.y, 1 / D.z);
-			//if (std::isnan(rD.x) || isnan(rD.y) || isnan(rD.z))
-			//	std::cout << "NaN in rD.x" << std::endl;
-			Dsign = (float3(-copysign(1.0f, D.x), -copysign(1.0f, D.y), -copysign(1.0f, D.z)) + 1) * 0.5f;
-		}
+		Ray(const float3 origin, const float3 direction, const float rayLength = 1e34f, const int = 0);
 
 		float3 IntersectionPoint() const
 		{
@@ -70,7 +61,7 @@ namespace Tmpl8
 		float3 GetNormal() const;
 		float3 UintToFloat3(uint col) const;
 		float UintToFloat3EmmisionStrength(uint col) const;
-		float3 GetAlbedo(Scene& scene);
+		float3 GetAlbedo(Scene& scene) const;
 		float GetRoughness(Scene& scene) const;
 		float GetRefractivity(const float3& I) const; // TODO: implement
 		//E reflected = E incoming multiplied by C material
@@ -124,6 +115,7 @@ namespace Tmpl8
 		};
 
 		void GenerateSomeNoise(float frequency);
+		void ResetGrid();
 		Scene();
 		void LoadModel(const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
@@ -134,7 +126,7 @@ namespace Tmpl8
 
 		std::array<MaterialType::MatType, GRIDSIZE3> grid{};
 
-
+		float3 scaleModel{1.0f};
 		Cube cube;
 		std::vector<shared_ptr<Material>> materials;
 

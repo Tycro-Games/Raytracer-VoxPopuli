@@ -40,7 +40,6 @@
     </ClCompile>
     <ClCompile Include="template\tmpl8math.cpp" />
     <ClCompile Include="src\Lighting\PointLight.cpp" />
-    <ClCompile Include="src\Lighting\Light.cpp" />
     <ClCompile Include="src\Lighting\DirectionalLight.cpp" />
     <ClCompile Include="src\Lighting\SpotLight.cpp" />
     <ClCompile Include="src\Lighting\SkyDome.cpp" />
@@ -101,7 +100,6 @@
     <ClInclude Include="template\tmpl8math.h" />
     <ClInclude Include="src\VoxelCube.h" />
     <ClInclude Include="src\Lighting\PointLight.h" />
-    <ClInclude Include="src\Lighting\Light.h" />
     <ClInclude Include="src\Lighting\DirectionalLight.h" />
     <ClInclude Include="src\Lighting\SpotLight.h" />
     <ClInclude Include="src\Lighting\SkyDome.h" />

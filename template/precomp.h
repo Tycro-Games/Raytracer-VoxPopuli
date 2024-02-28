@@ -136,7 +136,6 @@ using namespace Tmpl8;
 // raytracing
 
 //lighting
-#include "Lighting/Light.h"
 #include "Lighting/PointLight.h"
 #include "Lighting/DirectionalLight.h"
 #include "Lighting/SpotLight.h"
@@ -217,7 +216,7 @@ public:
 	static void GetProcessorCount(uint& cores, uint& logical);
 	void AddJob2(Job* a_Job);
 
-	unsigned int GetNumThreads()
+	unsigned int GetNumThreads() const
 	{
 		return m_NumThreads;
 	}

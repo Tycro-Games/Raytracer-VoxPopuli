@@ -275,12 +275,23 @@ void Renderer::Init()
 
 	dielectricsMaterials.push_back(glass);
 
+
 	for (auto& mat : nonMetalMaterials)
 		mainScene.materials.push_back(mat);
 	for (auto& mat : metalMaterials)
 		mainScene.materials.push_back(mat);
 	for (auto& mat : dielectricsMaterials)
 		mainScene.materials.push_back(mat);
+
+	if (mainScene.materials.size() < MaterialType::NONE)
+	{
+		size_t i = mainScene.materials.size();
+		mainScene.materials.resize(MaterialType::NONE);
+		for (; i < MaterialType::NONE; ++i)
+		{
+			mainScene.materials[i] = std::make_shared<ReflectivityMaterial>(float3(1, 1, 1), 1.f);
+		}
+	}
 }
 
 void Renderer::Illumination(Ray& ray, float3& incLight)
@@ -344,6 +355,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		}
 
 	//non-metal
+
 	case MaterialType::NON_METAL_WHITE:
 	case MaterialType::NON_METAL_PINK:
 	case MaterialType::NON_METAL_RED:
@@ -376,6 +388,12 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		break;
 	case MaterialType::NONE:
 		return skyDome.SampleSky(ray);
+	default:
+		float3 incLight{0};
+		float3 randomDirection = DiffuseReflection(N);
+		Illumination(ray, incLight);
+		newRay = Ray{OffsetRay(I, N), randomDirection};
+		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
 	}
 
 	//fixes a warning

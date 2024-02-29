@@ -38,7 +38,7 @@ namespace MaterialType
 		METAL_MID,
 		METAL_LOW,
 		GLASS,
-		NONE
+		NONE = 256
 	};
 }
 

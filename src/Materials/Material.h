@@ -6,18 +6,18 @@ public:
 	virtual ~Material() = default;
 	virtual float3 GetAlbedo() = 0;
 	virtual float GetRoughness() = 0;
+	float3 albedo{1};
+	float roughness{0};
 };
 
 
 class ReflectivityMaterial : public Material
 {
 public:
-	ReflectivityMaterial(float3 albedo, float rougness = 1.0f);
+	ReflectivityMaterial(float3 _albedo, float _roughness = 1.0f);
 
 	float3 GetAlbedo() override;
 	float GetRoughness() override;
-	float3 albedo{1};
-	float roughness{0};
 };
 
 //class Reflective : public Material

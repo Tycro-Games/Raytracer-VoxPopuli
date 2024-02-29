@@ -205,6 +205,7 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 
 	// construct the scene from the buffer
 	const auto scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->models[0];
+	const auto scenePallete = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->palette;
 	//created using chatgpt promts
 	// Assign colors based on the loaded scene
 	// Define scaling factors for each dimension
@@ -226,20 +227,25 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 
 
 				// Assume each voxel has a color index, and map that to MatType
-				MaterialType::MatType color = MaterialType::NONE;
+				MaterialType::MatType materialIndex = MaterialType::NONE;
 				// Calculate index into voxel_data based on the current position
 				const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
 				// Access color index from voxel_data
-				uint8_t voxel_color_index = scene->voxel_data[index];
-				if (voxel_color_index == 0)
+				uint8_t voxelColorIndex = scene->voxel_data[index];
+				const auto col = scenePallete.color[voxelColorIndex];
+
+				if (voxelColorIndex == 0)
 				{
 					continue;
 				}
 
-				color = static_cast<MaterialType::MatType>(voxel_color_index % MaterialType::NONE);
-
+				materialIndex = static_cast<MaterialType::MatType>(voxelColorIndex);
+				materials[materialIndex]->albedo = (float3(static_cast<float>(col.r) / 255.0f,
+				                                           static_cast<float>(col.g) / 255.0f,
+				                                           static_cast<float>(col.b) / 255.0f));
+				materials[materialIndex]->roughness = 1.0f;
 				// Set the color at position (x, y, z)
-				Set(scaledX, scaledY, scaledZ, color);
+				Set(scaledX, scaledY, scaledZ, materialIndex);
 			}
 		}
 	}

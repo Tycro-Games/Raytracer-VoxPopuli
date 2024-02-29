@@ -2,9 +2,10 @@
 #include "Material.h"
 
 
-ReflectivityMaterial::ReflectivityMaterial(float3 albedo, float rougness): albedo(albedo),
-                                                                           roughness(rougness)
+ReflectivityMaterial::ReflectivityMaterial(float3 _albedo, float _roughness)
 {
+	albedo = _albedo;
+	roughness = _roughness;
 }
 
 float3 ReflectivityMaterial::GetAlbedo()

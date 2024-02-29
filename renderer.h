@@ -19,6 +19,7 @@ namespace Tmpl8
 		float3 AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const;
 		static float3 DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData);
 		void ResetAccumulator();
+		void MaterialSetUp();
 		// game flow methods
 		void Init() override;
 		void Illumination(Ray& ray, float3& incLight);
@@ -82,6 +83,7 @@ namespace Tmpl8
 		std::vector<shared_ptr<ReflectivityMaterial>> metalMaterials;
 		std::vector<shared_ptr<ReflectivityMaterial>> nonMetalMaterials;
 		std::vector<shared_ptr<ReflectivityMaterial>> dielectricsMaterials;
+		std::vector<shared_ptr<ReflectivityMaterial>> emissiveMaterials;
 
 		//std::vector<shared_ptr<DiffuseMaterial>> reflectiveMaterials;
 		//lights
@@ -95,7 +97,7 @@ namespace Tmpl8
 		int32_t numCheckShadowsAreaLight = 3;
 		// Get a list of .vox files in the assets folder
 		std::vector<std::string> voxFiles;
-
+		int matTypeSphere = MaterialType::EMISSIVE;
 
 		//BVH
 		BasicBVH bvh;

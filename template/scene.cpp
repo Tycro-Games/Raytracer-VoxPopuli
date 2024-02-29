@@ -21,6 +21,31 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 	Dsign = (float3((float)x_sign * 2 - 1, (float)y_sign * 2 - 1, (float)z_sign * 2 - 1) + 1) * 0.5f;
 }
 
+
+Ray Ray::GetRefractedRay(const Ray& ray, const float IORRatio)
+{
+	const float3 rayIn = ray.D;
+	const float3 rayNormal = ray.GetNormal();
+
+	const float cosTheta = min(dot(-rayIn, rayNormal), 1.0f);
+	const float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+	bool cannotRefract = IORRatio * sinTheta > 1.0f;
+
+	const float3 rayOutPerpendicular = IORRatio * (rayIn + cosTheta * rayNormal);
+	const float3 rayOutParallel = -sqrtf(fabsf(1.0f - sqrLength(rayOutPerpendicular))) *
+		rayNormal;
+	float3 direction;
+	if (cannotRefract || Reflectance(cosTheta, IORRatio) > RandomFloat())
+	{
+		direction = {ray.D - 2 * rayNormal * dot(rayNormal, ray.D)};
+	}
+	else
+	{
+		direction = rayOutPerpendicular + rayOutParallel;
+	}
+	return {OffsetRay(ray.IntersectionPoint(), rayNormal), direction};
+}
+
 float3 Ray::GetNormal() const
 {
 	// return the voxel normal at the nearest intersection
@@ -50,26 +75,25 @@ float3 Ray::UintToFloat3(uint col) const
 	return float3(normRed, normGreen, normBlue);
 }
 
-float Ray::UintToFloat3EmmisionStrength(uint col) const
+
+float3 Ray::GetAlbedo(const Scene& scene) const
 {
-	const uint8_t emmision = (col >> 24) & 0xFF;
-
-
-	// Normalize color components to the range [0, 1]
-	const float normRed = static_cast<float>(emmision) / 255.0f;
-
-
-	return normRed;
+	return scene.materials[indexMaterial]->albedo;
 }
 
-float3 Ray::GetAlbedo(Scene& scene) const
+float3 Ray::GetEmissive(const Scene& scene) const
 {
-	return scene.materials[indexMaterial]->GetAlbedo();
+	return scene.materials[indexMaterial]->emissiveStrength;
 }
 
-float Ray::GetRoughness(Scene& scene) const
+float Ray::GetRefractivity(const Scene& scene) const
 {
-	return scene.materials[indexMaterial]->GetRoughness();
+	return scene.materials[indexMaterial]->IOR;
+}
+
+float Ray::GetRoughness(const Scene& scene) const
+{
+	return scene.materials[indexMaterial]->roughness;
 }
 
 
@@ -147,7 +171,7 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 				}
 				else if (n < 0.3)
 				{
-					color = MaterialType::NON_METAL_BLUE;
+					color = MaterialType::GLASS;
 				}
 				else if (n < 0.5f)
 					color = MaterialType::METAL_HIGH;
@@ -254,6 +278,34 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 	delete[] buffer;
 }
 
+void Scene::CreateEmmisiveSphere(MaterialType::MatType mat)
+{
+	//ResetGrid();
+	//based on Lynn's implementation
+	// When looping over (x, y, z) during scene creation
+
+	constexpr float worldCenter{(WORLDSIZE / 2.0f)};
+
+	for (uint32_t z = 0; z < WORLDSIZE; ++z)
+	{
+		for (uint32_t y = 0; y < WORLDSIZE; ++y)
+		{
+			for (uint32_t x = 0; x < WORLDSIZE; ++x)
+			{
+				const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
+				const float distanceSquared{length(worldCenter - point)}; // Distance from the center of the world
+
+
+				if (distanceSquared < radiusEmissiveSphere)
+				{
+					// The voxel exists
+					Set(x, y, z, mat);
+				}
+			}
+		}
+	}
+}
+
 void Scene::Set(const uint x, const uint y, const uint z, const MaterialType::MatType v)
 {
 	grid[x + y * GRIDSIZE + z * GRIDSIZE2] = v;
@@ -334,6 +386,61 @@ void Scene::FindNearest(Ray& ray) const
 	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
 	// - Loop-unrolling may speed up the while loop.
 	// - This code can be ported to GPU.
+}
+
+bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
+{
+	// setup Amanatides & Woo grid traversal
+	DDAState s;
+	if (!Setup3DDDA(ray, s)) return false;
+	// start stepping
+	while (1)
+	{
+		const MaterialType::MatType cell = grid[s.X + s.Y * GRIDSIZE + s.Z * GRIDSIZE2];
+		if (cell != matType)
+		{
+			ray.t = s.t;
+			ray.indexMaterial = cell;
+			return true;
+		}
+		if (s.tmax.x < s.tmax.y)
+		{
+			if (s.tmax.x < s.tmax.z)
+			{
+				s.t = s.tmax.x, s.X += s.step.x;
+				if (s.X >= GRIDSIZE) break;
+				s.tmax.x += s.tdelta.x;
+			}
+			else
+			{
+				s.t = s.tmax.z, s.Z += s.step.z;
+				if (s.Z >= GRIDSIZE) break;
+				s.tmax.z += s.tdelta.z;
+			}
+		}
+		else
+		{
+			if (s.tmax.y < s.tmax.z)
+			{
+				s.t = s.tmax.y, s.Y += s.step.y;
+				if (s.Y >= GRIDSIZE) break;
+				s.tmax.y += s.tdelta.y;
+			}
+			else
+			{
+				s.t = s.tmax.z, s.Z += s.step.z;
+				if (s.Z >= GRIDSIZE) break;
+				s.tmax.z += s.tdelta.z;
+			}
+		}
+	}
+	// TODO:
+	// - A nested grid will let rays skip empty space much faster.
+	// - Coherent rays can traverse the grid faster together.
+	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+	// - Loop-unrolling may speed up the while loop.
+	// - This code can be ported to GPU.
+	return false;
 }
 
 

@@ -27,7 +27,7 @@ constexpr auto WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x51
 
 namespace MaterialType
 {
-	enum MatType //:uint8_t
+	enum MatType :uint32_t
 	{
 		NON_METAL_WHITE,
 		NON_METAL_RED,
@@ -38,6 +38,7 @@ namespace MaterialType
 		METAL_MID,
 		METAL_LOW,
 		GLASS,
+		EMISSIVE,
 		NONE = 256
 	};
 }
@@ -58,12 +59,15 @@ namespace Tmpl8
 			return O + t * D;
 		}
 
+		//from Ray tracing in one weekend
+		static Ray GetRefractedRay(const Ray& ray, const float IORRatio);
+
 		float3 GetNormal() const;
 		float3 UintToFloat3(uint col) const;
-		float UintToFloat3EmmisionStrength(uint col) const;
-		float3 GetAlbedo(Scene& scene) const;
-		float GetRoughness(Scene& scene) const;
-		float GetRefractivity(const float3& I) const; // TODO: implement
+		float3 GetAlbedo(const Scene& scene) const;
+		float3 GetEmissive(const Scene& scene) const;
+		float GetRoughness(const Scene& scene) const;
+		float GetRefractivity(const Scene& scene) const;
 		//E reflected = E incoming multiplied by C material
 
 		float3 GetAbsorption(const float3& I) const; // TODO: implement
@@ -115,10 +119,12 @@ namespace Tmpl8
 		};
 
 		void GenerateSomeNoise(float frequency);
+		void LoadModel(const char* filename, uint32_t scene_read_flags = 0);
+		void CreateEmmisiveSphere(MaterialType::MatType mat);
 		void ResetGrid();
 		Scene();
-		void LoadModel(const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
+		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
 
 
 		bool IsOccluded(const Ray& ray) const;
@@ -129,6 +135,7 @@ namespace Tmpl8
 		float3 scaleModel{1.0f};
 		Cube cube;
 		std::vector<shared_ptr<Material>> materials;
+		float radiusEmissiveSphere = 1.0f;
 
 	private:
 		bool Setup3DDDA(const Ray& ray, DDAState& state) const;

@@ -4,10 +4,11 @@ class Material
 {
 public:
 	virtual ~Material() = default;
-	virtual float3 GetAlbedo() = 0;
-	virtual float GetRoughness() = 0;
+
 	float3 albedo{1};
 	float roughness{0};
+	float emissiveStrength{0};
+	float IOR{1.5};
 };
 
 
@@ -15,9 +16,6 @@ class ReflectivityMaterial : public Material
 {
 public:
 	ReflectivityMaterial(float3 _albedo, float _roughness = 1.0f);
-
-	float3 GetAlbedo() override;
-	float GetRoughness() override;
 };
 
 //class Reflective : public Material

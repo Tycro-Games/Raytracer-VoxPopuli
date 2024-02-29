@@ -220,6 +220,57 @@ void Renderer::ResetAccumulator()
 	numRenderedFrames = 0;
 }
 
+void Renderer::MaterialSetUp()
+{
+	const auto materialDifWhite = make_shared<ReflectivityMaterial>(float3(1, 1, 1));
+	const auto materialDifRed = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
+	const auto materialDifBlue = make_shared<ReflectivityMaterial>(float3(0, 0, 1));
+	const auto materialDifGreen = make_shared<ReflectivityMaterial>(float3(0, 1, 0), 0.0f);
+	const auto partialMetal = make_shared<ReflectivityMaterial>(float3(1, 1, 1), 0.75f);
+
+	//Mirror
+	const auto materialDifReflectivity = make_shared<ReflectivityMaterial>(float3(1));
+	const auto materialDifRefMid = make_shared<ReflectivityMaterial>(float3(0, 1, 1), 0.5f);
+	const auto materialDifRefLow = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
+	//partial mirror
+	const auto glass = make_shared<ReflectivityMaterial>(float3(1, 1, 0));
+	glass->IOR = 1.45f;
+	const auto emissive = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
+	emissive->emissiveStrength = 1.0f;
+
+	nonMetalMaterials.push_back(materialDifWhite);
+	nonMetalMaterials.push_back(materialDifRed);
+	nonMetalMaterials.push_back(materialDifBlue);
+	nonMetalMaterials.push_back(materialDifGreen);
+	nonMetalMaterials.push_back(partialMetal);
+	//metals
+	metalMaterials.push_back(materialDifReflectivity);
+	metalMaterials.push_back(materialDifRefMid);
+	metalMaterials.push_back(materialDifRefLow);
+
+	dielectricsMaterials.push_back(glass);
+	emissiveMaterials.push_back(emissive);
+
+	for (auto& mat : nonMetalMaterials)
+		mainScene.materials.push_back(mat);
+	for (auto& mat : metalMaterials)
+		mainScene.materials.push_back(mat);
+	for (auto& mat : dielectricsMaterials)
+		mainScene.materials.push_back(mat);
+	for (auto& mat : emissiveMaterials)
+		mainScene.materials.push_back(mat);
+
+	if (mainScene.materials.size() < MaterialType::NONE)
+	{
+		size_t i = mainScene.materials.size();
+		mainScene.materials.resize(MaterialType::NONE);
+		for (; i < MaterialType::NONE; ++i)
+		{
+			mainScene.materials[i] = std::make_shared<ReflectivityMaterial>(float3(1, 1, 1), 1.f);
+		}
+	}
+}
+
 void Renderer::Init()
 {
 	InitSeed(static_cast<uint>(time(nullptr)));
@@ -250,48 +301,7 @@ void Renderer::Init()
 	//Lighting set-up
 	SetUpLights();
 	//Material set-up
-	const auto materialDifWhite = make_shared<ReflectivityMaterial>(float3(1, 1, 1));
-	const auto materialDifRed = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
-	const auto materialDifBlue = make_shared<ReflectivityMaterial>(float3(0, 0, 1));
-	const auto materialDifGreen = make_shared<ReflectivityMaterial>(float3(0, 1, 0), 0.0f);
-	const auto partialMetal = make_shared<ReflectivityMaterial>(float3(1, 1, 1), 0.75f);
-
-	//Mirror
-	const auto materialDifReflectivity = make_shared<ReflectivityMaterial>(float3(1));
-	const auto materialDifRefMid = make_shared<ReflectivityMaterial>(float3(0, 1, 1), 0.5f);
-	const auto materialDifRefLow = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
-	//partial mirror
-	const auto glass = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
-
-	nonMetalMaterials.push_back(materialDifWhite);
-	nonMetalMaterials.push_back(materialDifRed);
-	nonMetalMaterials.push_back(materialDifBlue);
-	nonMetalMaterials.push_back(materialDifGreen);
-	nonMetalMaterials.push_back(partialMetal);
-	//metals
-	metalMaterials.push_back(materialDifReflectivity);
-	metalMaterials.push_back(materialDifRefMid);
-	metalMaterials.push_back(materialDifRefLow);
-
-	dielectricsMaterials.push_back(glass);
-
-
-	for (auto& mat : nonMetalMaterials)
-		mainScene.materials.push_back(mat);
-	for (auto& mat : metalMaterials)
-		mainScene.materials.push_back(mat);
-	for (auto& mat : dielectricsMaterials)
-		mainScene.materials.push_back(mat);
-
-	if (mainScene.materials.size() < MaterialType::NONE)
-	{
-		size_t i = mainScene.materials.size();
-		mainScene.materials.resize(MaterialType::NONE);
-		for (; i < MaterialType::NONE; ++i)
-		{
-			mainScene.materials[i] = std::make_shared<ReflectivityMaterial>(float3(1, 1, 1), 1.f);
-		}
-	}
+	MaterialSetUp();
 }
 
 void Renderer::Illumination(Ray& ray, float3& incLight)
@@ -363,8 +373,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::NON_METAL_GREEN:
 		{
 			float3 color{0};
-
-			if (RandomFloat() < ray.GetRoughness(mainScene))
+			bool isDiffuse = RandomFloat() < ray.GetRoughness(mainScene);
+			if (isDiffuse)
 			{
 				float3 incLight{0};
 				float3 randomDirection = DiffuseReflection(N);
@@ -384,10 +394,30 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			return color;
 		}
 	case MaterialType::GLASS:
-		//code for glass
-		break;
+		{
+			//code for glass
+			float IORMaterial = ray.GetRefractivity(mainScene); //1.45
+			float IORR = 1.0f / IORMaterial;
+
+			Ray enteringRay{Ray::GetRefractedRay(ray, IORR)};
+			//we are still inside the voxel world
+			if (mainScene.FindMaterialExit(enteringRay, MaterialType::GLASS))
+			{
+				Ray exitingRay{Ray::GetRefractedRay(enteringRay, IORMaterial)};
+				float3 light{0};
+				Illumination(ray, light);
+
+				return ray.GetAlbedo(mainScene) * light + Trace(exitingRay, depth - 1);
+			}
+			//we are outside the volume
+			return skyDome.SampleSky(ray);
+		}
+	case MaterialType::EMISSIVE:
+		return ray.GetAlbedo(mainScene) * ray.GetEmissive(mainScene);
+
 	case MaterialType::NONE:
 		return skyDome.SampleSky(ray);
+	//random materials from the models
 	default:
 		float3 incLight{0};
 		float3 randomDirection = DiffuseReflection(N);
@@ -466,6 +496,7 @@ void Renderer::Tick(float deltaTime)
 	}
 }
 
+
 //this is from Lynn's code
 // [CREDITS] Article on tonemapping https://64.github.io/tonemapping/#aces
 float3 Renderer::ApplyReinhardJodie(const float3& color)
@@ -488,292 +519,6 @@ float Renderer::GetLuminance(const float3& color)
 	return dot(color, {0.2126f, 0.7152f, 0.0722f});
 }
 
-void Renderer::HandleImguiPointLights()
-{
-	if (!ImGui::CollapsingHeader("Point Lights"))
-		return;
-	int pointIndex = 0;
-	for (auto& light : pointLights)
-	{
-		ImGui::SliderFloat3(("Light position:" + to_string(pointIndex)).c_str(), light.data.position.cell, -1.0f, 2.0f);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::ColorEdit3(("Light Color:" + to_string(pointIndex)).c_str(), light.data.color.cell);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		pointIndex++;
-	}
-}
-
-void Renderer::HandleImguiAreaLights()
-{
-	if (!ImGui::CollapsingHeader("Area Lights"))
-		return;
-	int pointIndex = 0;
-	for (auto& light : areaLights)
-	{
-		ImGui::SliderFloat3(("Area Lights position:" + to_string(pointIndex)).c_str(), light.data.position.cell, -5.0f,
-		                    6.0f);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::ColorEdit3(("Area Lights Color:" + to_string(pointIndex)).c_str(), light.data.color.cell);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::SliderFloat(("Area Lights color multiplier:" + to_string(pointIndex)).c_str(),
-		                   &light.data.colorMultiplier,
-		                   0.f, 10.0f);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::SliderFloat(("Area Lights Radius:" + to_string(pointIndex)).c_str(), &light.data.radius, 0.f, 10.0f);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::SliderInt(("Area Lights checks per shadow:" + to_string(pointIndex)).c_str(), &numCheckShadowsAreaLight,
-		                 1, 100);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		pointIndex++;
-	}
-}
-
-void Renderer::HandleImguiSpotLights()
-{
-	if (!ImGui::CollapsingHeader("Spot lights"))
-		return;
-	int spotIndex = 0;
-	for (auto& light : spotLights)
-	{
-		ImGui::SliderFloat3(("Spot  position:" + to_string(spotIndex)).c_str(), light.data.direction.cell, 0, 1);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::SliderFloat3(("Spot light position:" + to_string(spotIndex)).c_str(), light.data.position.cell, -1.0f,
-		                    2.0f);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::ColorEdit3(("Spot light color:" + to_string(spotIndex)).c_str(), light.data.color.cell);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		ImGui::SliderFloat(("Spot light angle:" + to_string(spotIndex)).c_str(), &light.data.angle, 0.0f, 1.0f);
-		if (ImGui::IsItemEdited())
-		{
-			ResetAccumulator();
-		}
-		spotIndex++;
-	}
-}
-
-void Renderer::HandleImguiDirectionalLight()
-{
-	if (!ImGui::CollapsingHeader("Directional light"))
-		return;
-	ImGui::SliderFloat3("Dir light direction:", dirLight.data.direction.cell, -1.0f, 1.0f);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::ColorEdit3("Dir light:", dirLight.data.color.cell);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-}
-
-//void Renderer::HandleImguiAmbientLight()
-//{
-//	if (!ImGui::CollapsingHeader("Ambient light"))
-//		return;
-//	ImGui::ColorEdit3("Ambient light:", ambientLight.data.color.cell);
-//}
-
-void Renderer::HandleImguiGeneral()
-{
-	if (!ImGui::CollapsingHeader("General"))
-		return;
-	ImGui::SliderFloat("Perlin frq", &frqGenerationPerlinNoise, 0.001f, .5f);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 10.0f);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::SliderInt("Max Bounces", &maxBounces, 1, 300);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::SliderInt("Max Rays per Pixel", &maxRayPerPixel, 1, 200);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::SliderFloat2("DOF strength", camera.defocusJitter.cell, 0.0f, 2.0f);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::DragFloat("Focal Point distance", &camera.focalDistance, .1f, -1.0f, 100.0f);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	ImGui::Text("Camera look ahead %.2f,  %.2f,  %.2f:", camera.ahead.x, camera.ahead.y,
-	            camera.ahead.z);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-	if (ImGui::Button("Generate new Perlin noise"))
-	{
-		mainScene.GenerateSomeNoise(frqGenerationPerlinNoise);
-		ResetAccumulator();
-	}
-	//from Sven 232380
-	// Read all the .vox files in the assets folder and store them in a vector
-
-
-	// Dropdown for selecting .vox file
-	static int selectedItem = 0; // Index of the selected item in the combo box
-
-	std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
-	for (const auto& file : voxFiles)
-	{
-		cStrVoxFiles.push_back(file.c_str());
-	}
-
-	ImGui::Combo("Vox Files", &selectedItem, cStrVoxFiles.data(), static_cast<int>(cStrVoxFiles.size()));
-	ImGui::SliderFloat3("Vox model size", mainScene.scaleModel.cell, 0.0f, 1.0f);
-	if (ImGui::IsItemEdited())
-	{
-		ResetAccumulator();
-	}
-
-	if (ImGui::Button("Load Vox File") && selectedItem >= 0)
-	{
-		// Load the selected .vox file
-		const std::string path = "assets/" + voxFiles[selectedItem];
-		mainScene.LoadModel(path.c_str());
-		ResetAccumulator();
-	}
-}
-
-void Renderer::HandleImguiMaterials()
-{
-	int index = 0;
-
-	if (ImGui::CollapsingHeader("Non-Metals"))
-	{
-		for (auto& material : nonMetalMaterials)
-		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-			if (ImGui::IsItemEdited())
-			{
-				ResetAccumulator();
-			}
-			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
-			                   1.0f);
-			index++;
-			if (ImGui::IsItemEdited())
-			{
-				ResetAccumulator();
-			}
-		}
-	}
-	if (ImGui::CollapsingHeader("Metals"))
-	{
-		for (auto& material : metalMaterials)
-		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-			if (ImGui::IsItemEdited())
-			{
-				ResetAccumulator();
-			}
-			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
-			                   1.0f);
-			index++;
-			if (ImGui::IsItemEdited())
-			{
-				ResetAccumulator();
-			}
-		}
-	}
-	if (ImGui::CollapsingHeader("Dielectrics"))
-	{
-		for (auto& material : dielectricsMaterials)
-		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-			if (ImGui::IsItemEdited())
-			{
-				ResetAccumulator();
-			}
-			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
-			                   1.0f);
-			index++;
-			if (ImGui::IsItemEdited())
-			{
-				ResetAccumulator();
-			}
-		}
-	}
-}
-
-// -----------------------------------------------------------
-// Update user interface (imgui)
-// -----------------------------------------------------------
-void Renderer::UI()
-{
-	// ray query on mouse
-	/*Ray r = camera.GetPrimaryRay((float)mousePos.x, (float)mousePos.y);
-	mainScene.FindNearest(r);
-	ImGui::Text("voxel: %i", r.voxel);*/
-	ImGui::Begin("Debug");
-
-	ImGui::BeginChild("Scrolling");
-	if (ImGui::CollapsingHeader("Lights"))
-	{
-		HandleImguiAreaLights();
-
-		HandleImguiPointLights();
-
-
-		HandleImguiSpotLights();
-
-
-		HandleImguiDirectionalLight();
-	}
-	if (ImGui::CollapsingHeader("Materials"))
-	{
-		HandleImguiMaterials();
-	}
-	ImGui::BeginChild("General");
-
-	HandleImguiGeneral();
-
-	ImGui::EndChild();
-
-	ImGui::End();
-}
 
 // -----------------------------------------------------------
 // User wants to close down
@@ -784,4 +529,501 @@ void Renderer::Shutdown()
 	FILE* f = fopen("camera.bin", "wb");
 	fwrite(&camera, 1, sizeof(Camera), f);
 	fclose(f);
+}
+
+void Renderer::HandleImguiPointLights()
+
+{
+	if (!ImGui::CollapsingHeader("Point Lights"))
+
+		return;
+
+	int pointIndex = 0;
+
+	for (auto& light : pointLights)
+
+	{
+		ImGui::SliderFloat3(("Light position:" + to_string(pointIndex)).c_str(), light.data.position.cell, -1.0f, 2.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::ColorEdit3(("Light Color:" + to_string(pointIndex)).c_str(), light.data.color.cell);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		pointIndex++;
+	}
+}
+
+
+void Renderer::HandleImguiAreaLights()
+
+{
+	if (!ImGui::CollapsingHeader("Area Lights"))
+
+		return;
+
+	int pointIndex = 0;
+
+	for (auto& light : areaLights)
+
+	{
+		ImGui::SliderFloat3(("Area Lights position:" + to_string(pointIndex)).c_str(), light.data.position.cell, -5.0f,
+
+		                    6.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::ColorEdit3(("Area Lights Color:" + to_string(pointIndex)).c_str(), light.data.color.cell);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderFloat(("Area Lights color multiplier:" + to_string(pointIndex)).c_str(),
+
+		                   &light.data.colorMultiplier,
+
+		                   0.f, 10.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderFloat(("Area Lights Radius:" + to_string(pointIndex)).c_str(), &light.data.radius, 0.f, 10.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderInt(("Area Lights checks per shadow:" + to_string(pointIndex)).c_str(), &numCheckShadowsAreaLight,
+
+		                 1, 100);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		pointIndex++;
+	}
+}
+
+
+void Renderer::HandleImguiSpotLights()
+
+{
+	if (!ImGui::CollapsingHeader("Spot lights"))
+
+		return;
+
+	int spotIndex = 0;
+
+	for (auto& light : spotLights)
+
+	{
+		ImGui::SliderFloat3(("Spot  position:" + to_string(spotIndex)).c_str(), light.data.direction.cell, 0, 1);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderFloat3(("Spot light position:" + to_string(spotIndex)).c_str(), light.data.position.cell, -1.0f,
+
+		                    2.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::ColorEdit3(("Spot light color:" + to_string(spotIndex)).c_str(), light.data.color.cell);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderFloat(("Spot light angle:" + to_string(spotIndex)).c_str(), &light.data.angle, 0.0f, 1.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+		spotIndex++;
+	}
+}
+
+
+void Renderer::HandleImguiDirectionalLight()
+
+{
+	if (!ImGui::CollapsingHeader("Directional light"))
+
+		return;
+
+	ImGui::SliderFloat3("Dir light direction:", dirLight.data.direction.cell, -1.0f, 1.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::ColorEdit3("Dir light:", dirLight.data.color.cell);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+}
+
+
+//void Renderer::HandleImguiAmbientLight()
+
+//{
+
+//	if (!ImGui::CollapsingHeader("Ambient light"))
+
+//		return;
+
+//	ImGui::ColorEdit3("Ambient light:", ambientLight.data.color.cell);
+
+//}
+
+
+void Renderer::HandleImguiGeneral()
+
+{
+	if (!ImGui::CollapsingHeader("General"))
+
+		return;
+
+	ImGui::SliderFloat("Perlin frq", &frqGenerationPerlinNoise, 0.001f, .5f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 10.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::SliderInt("Max Bounces", &maxBounces, 1, 300);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::SliderInt("Max Rays per Pixel", &maxRayPerPixel, 1, 200);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::SliderFloat2("DOF strength", camera.defocusJitter.cell, 0.0f, 2.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::DragFloat("Focal Point distance", &camera.focalDistance, .1f, -1.0f, 100.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::Text("Camera look ahead %.2f,  %.2f,  %.2f:", camera.ahead.x, camera.ahead.y,
+
+	            camera.ahead.z);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	if (ImGui::Button("Generate new Perlin noise"))
+
+	{
+		mainScene.GenerateSomeNoise(frqGenerationPerlinNoise);
+
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Generate new Sphere emissive"))
+
+	{
+		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere));
+
+		ResetAccumulator();
+	}
+	ImGui::SliderFloat("radius sphere", &mainScene.radiusEmissiveSphere, 0.0f, WORLDSIZE);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere));
+		ResetAccumulator();
+	}
+	std::vector<const char*> cStr; // ImGui needs const char* array
+
+
+	ImGui::SliderInt("Material Types", &matTypeSphere, 0, MaterialType::GLASS);
+
+	//from Sven 232380
+
+	// Read all the .vox files in the assets folder and store them in a vector
+
+
+	// Dropdown for selecting .vox file
+
+	static int selectedItem = 0; // Index of the selected item in the combo box
+
+
+	std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
+
+	for (const auto& file : voxFiles)
+
+	{
+		cStrVoxFiles.push_back(file.c_str());
+	}
+
+
+	ImGui::Combo("Vox Files", &selectedItem, cStrVoxFiles.data(), static_cast<int>(cStrVoxFiles.size()));
+
+	ImGui::SliderFloat3("Vox model size", mainScene.scaleModel.cell, 0.0f, 1.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+
+	if (ImGui::Button("Load Vox File") && selectedItem >= 0)
+
+	{
+		// Load the selected .vox file
+
+		const std::string path = "assets/" + voxFiles[selectedItem];
+
+		mainScene.LoadModel(path.c_str());
+
+		ResetAccumulator();
+	}
+}
+
+
+void Renderer::HandleImguiMaterials()
+
+{
+	int index = 0;
+
+
+	if (ImGui::CollapsingHeader("Non-Metals"))
+
+	{
+		for (auto& material : nonMetalMaterials)
+
+		{
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+
+			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+
+			                   1.0f);
+
+			index++;
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+		}
+	}
+
+	if (ImGui::CollapsingHeader("Metals"))
+
+	{
+		for (auto& material : metalMaterials)
+
+		{
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+
+			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+
+			                   1.0f);
+
+			index++;
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+		}
+	}
+
+	if (ImGui::CollapsingHeader("Dielectrics"))
+
+	{
+		for (auto& material : dielectricsMaterials)
+
+		{
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+
+			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+
+			                   1.0f);
+
+			index++;
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+		}
+	}
+	if (ImGui::CollapsingHeader("Emissive"))
+
+	{
+		for (auto& material : emissiveMaterials)
+
+		{
+			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+
+			ImGui::SliderFloat(("emissive :" + to_string(index)).c_str(), &material->emissiveStrength, 0,
+
+			                   10.0f);
+
+			index++;
+
+			if (ImGui::IsItemEdited())
+
+			{
+				ResetAccumulator();
+			}
+		}
+	}
+}
+
+
+// -----------------------------------------------------------
+
+// Update user interface (imgui)
+
+// -----------------------------------------------------------
+
+void Renderer::UI()
+
+{
+	// ray query on mouse
+
+	/*Ray r = camera.GetPrimaryRay((float)mousePos.x, (float)mousePos.y);
+
+	mainScene.FindNearest(r);
+
+	ImGui::Text("voxel: %i", r.voxel);*/
+
+	ImGui::Begin("Debug");
+
+
+	ImGui::BeginChild("Scrolling");
+
+	if (ImGui::CollapsingHeader("Lights"))
+
+	{
+		HandleImguiAreaLights();
+
+
+		HandleImguiPointLights();
+
+
+		HandleImguiSpotLights();
+
+
+		HandleImguiDirectionalLight();
+	}
+
+	if (ImGui::CollapsingHeader("Materials"))
+
+	{
+		HandleImguiMaterials();
+	}
+
+	ImGui::BeginChild("General");
+
+
+	HandleImguiGeneral();
+
+
+	ImGui::EndChild();
+
+
+	ImGui::End();
 }

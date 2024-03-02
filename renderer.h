@@ -26,7 +26,7 @@ namespace Tmpl8
 		static float3 Reflect(float3 direction, float3 normal);
 		static float3 Refract(float3 direction, float3 normal, float IORRatio);
 		float3 Trace(Ray& ray, int depth);
-		static float Reflectance(float cosine, float ref_idx);
+		static float SchlickReflectance(float cosine, float indexOfRefraction);
 		void Tick(float deltaTime) override;
 		float3 ApplyReinhardJodie(const float3& color);
 		float GetLuminance(const float3& color);
@@ -35,6 +35,7 @@ namespace Tmpl8
 		void HandleImguiSpotLights();
 		void HandleImguiDirectionalLight();
 		void HandleImguiGeneral();
+		void MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material);
 		void HandleImguiMaterials();
 		void UI() override;
 		void Shutdown() override;

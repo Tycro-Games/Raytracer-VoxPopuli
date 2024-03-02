@@ -47,12 +47,16 @@ namespace Tmpl8
 		bool HandleInput(const float t)
 		{
 			if (!WindowHasFocus()) return false;
-			const float speed = 0.00015f * t;
+			const float baseSpeed = 0.00015f * t;
+			float speed = baseSpeed;
+			if (IsKeyDown(GLFW_KEY_LEFT_SHIFT))
+				speed *= 2;
 			ahead = normalize(camTarget - camPos);
 			const float3 tmpUp(0, 1, 0);
 			right = normalize(cross(tmpUp, ahead));
 			up = normalize(cross(ahead, right));
 			bool changed = false;
+
 			if (IsKeyDown(GLFW_KEY_A)) camPos -= speed * 2 * right, changed = true;
 			if (IsKeyDown(GLFW_KEY_D)) camPos += speed * 2 * right, changed = true;
 			if (IsKeyDown(GLFW_KEY_W)) camPos += speed * 2 * ahead, changed = true;

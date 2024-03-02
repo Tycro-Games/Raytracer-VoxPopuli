@@ -329,18 +329,18 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
 	incLight *= LIGHT_COUNT;
 }
 
-float3 Renderer::Reflect(float3 direction, const float3 normal)
+float3 Renderer::Reflect(const float3 direction, const float3 normal)
 {
 	return direction - 2 * normal * dot(normal, direction);
 }
 
 //from ray tracing in one weekend
-float3 Renderer::Refract(float3 direction, const float3 normal, float IORRatio)
+float3 Renderer::Refract(const float3 direction, const float3 normal, const float IORRatio)
 {
-	const float cos_theta = min(dot(-direction, normal), 1.0f);
-	const float3 r_out_perp = IORRatio * (direction + cos_theta * normal);
-	const float3 r_out_parallel = -sqrtf(fabsf(1.0f - sqrLength(r_out_perp))) * normal;
-	return r_out_perp + r_out_parallel;
+	const float cosTheta = min(dot(-direction, normal), 1.0f);
+	const float3 rPer = IORRatio * (direction + cosTheta * normal);
+	const float3 rPar = -sqrtf(fabsf(1.0f - sqrLength(rPer))) * normal;
+	return rPer + rPar;
 }
 
 // -----------------------------------------------------------
@@ -359,8 +359,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		return skyDome.SampleSky(ray);
 	}
 
-	const float3 N = ray.GetNormal();
-	const float3 I = ray.IntersectionPoint();
+	const float3 normal = ray.GetNormal();
+	const float3 intersectionPoint = ray.IntersectionPoint();
 
 	Ray newRay;
 
@@ -371,9 +371,10 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::METAL_HIGH:
 	case MaterialType::METAL_LOW:
 		{
-			float3 reflectedDirection = Reflect(N, ray.D);
+			float3 reflectedDirection = Reflect(ray.D, normal);
 			newRay = Ray{
-				OffsetRay(I, N), reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
+				OffsetRay(intersectionPoint, normal),
+				reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 			};
 			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
 		}
@@ -388,21 +389,21 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		{
 			//TODO add fresnel from Remi
 			float3 color{0};
-			bool isDiffuse = RandomFloat() < ray.GetRoughness(mainScene);
-			if (isDiffuse)
+			if (RandomFloat() > SchlickReflectance(dot(-ray.D, normal), ray.GetRefractivity(mainScene)))
 			{
 				float3 incLight{0};
-				float3 randomDirection = DiffuseReflection(N);
+				float3 randomDirection = DiffuseReflection(normal);
 				Illumination(ray, incLight);
-				newRay = Ray{OffsetRay(I, N), randomDirection};
+				newRay = Ray{OffsetRay(intersectionPoint, normal), randomDirection};
 				color += incLight;
 				color += Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
 			}
 			else
 			{
-				float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
+				float3 reflectedDirection = ray.D - 2 * normal * dot(normal, ray.D);
 				newRay = Ray{
-					OffsetRay(I, N), reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
+					OffsetRay(intersectionPoint, normal),
+					reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 				};
 				color += Trace(newRay, depth - 1);
 			}
@@ -411,6 +412,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	//mostly based on Ray tracing in one weekend
 	case MaterialType::GLASS:
 		{
+			float3 color{1};
 			//code for glass
 			bool isInGlass = ray.isInsideGlass;
 			float IORMaterial = ray.GetRefractivity(mainScene); //1.45
@@ -420,6 +422,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			//we need to get to the next voxel
 			if (isInGlass)
 			{
+				color = ray.GetAlbedo(mainScene);
+
 				isInsideVolume = mainScene.FindMaterialExit(ray, MaterialType::GLASS);
 			}
 			//outside bounds
@@ -435,7 +439,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 normal = ray.GetNormal();
 			//this may be negative if we refract
 			float3 resultingNormal;
-			if (cannotRefract || Reflectance(cosTheta, refractionRatio) > RandomFloat())
+			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
 			{
 				//reflect!
 				resultingDirection = Reflect(ray.D, normal);
@@ -450,7 +454,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			}
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
-			return Trace(newRay, depth - 1);
+			return Trace(newRay, depth - 1) * color;
 		}
 	case MaterialType::EMISSIVE:
 		return ray.GetAlbedo(mainScene) * ray.GetEmissive(mainScene);
@@ -460,9 +464,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	//random materials from the models
 	default:
 		float3 incLight{0};
-		float3 randomDirection = DiffuseReflection(N);
+		float3 randomDirection = DiffuseReflection(normal);
 		Illumination(ray, incLight);
-		newRay = Ray{OffsetRay(I, N), randomDirection};
+		newRay = Ray{OffsetRay(intersectionPoint, normal), randomDirection};
 		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
 	}
 
@@ -471,10 +475,10 @@ float3 Renderer::Trace(Ray& ray, int depth)
 }
 
 //From raytracing in one weekend
-float Renderer::Reflectance(float cosine, float ref_idx)
+float Renderer::SchlickReflectance(const float cosine, const float indexOfRefraction)
 {
 	// Use Schlick's approximation for reflectance.
-	auto r0 = (1 - ref_idx) / (1 + ref_idx);
+	auto r0 = (1 - indexOfRefraction) / (1 + indexOfRefraction);
 	r0 = r0 * r0;
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
@@ -482,14 +486,14 @@ float Renderer::Reflectance(float cosine, float ref_idx)
 // -----------------------------------------------------------
 // Main application tick function - Executed once per frame
 // -----------------------------------------------------------
-void Renderer::Tick(float deltaTime)
+void Renderer::Tick(const float deltaTime)
 {
 	// pixel loop
 	const Timer t;
 
 	//c++ 17 onwards parallel for loop
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
-	         [this](uint32_t y)
+	         [this](const uint32_t y)
 	         {
 		         //do only once
 		         const uint32_t pitch = y * SCRWIDTH;
@@ -903,6 +907,33 @@ void Renderer::HandleImguiGeneral()
 }
 
 
+void Renderer::MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material)
+{
+	ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+	ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+	                   1.0f);
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+	ImGui::SliderFloat(("IOR :" + to_string(index)).c_str(), &material->IOR, 1.0f,
+
+	                   2.4f);
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+}
+
 void Renderer::HandleImguiMaterials()
 
 {
@@ -915,25 +946,8 @@ void Renderer::HandleImguiMaterials()
 		for (auto& material : nonMetalMaterials)
 
 		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
-
-			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
-
-			                   1.0f);
-
+			MaterialEdit(index, material);
 			index++;
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
 		}
 	}
 
@@ -943,25 +957,8 @@ void Renderer::HandleImguiMaterials()
 		for (auto& material : metalMaterials)
 
 		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
-
-			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
-
-			                   1.0f);
-
+			MaterialEdit(index, material);
 			index++;
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
 		}
 	}
 
@@ -971,25 +968,8 @@ void Renderer::HandleImguiMaterials()
 		for (auto& material : dielectricsMaterials)
 
 		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
-
-			ImGui::SliderFloat(("ior :" + to_string(index)).c_str(), &material->IOR, 1.0f,
-
-			                   2.4f);
-
+			MaterialEdit(index, material);
 			index++;
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
 		}
 	}
 	if (ImGui::CollapsingHeader("Emissive"))
@@ -998,25 +978,8 @@ void Renderer::HandleImguiMaterials()
 		for (auto& material : emissiveMaterials)
 
 		{
-			ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
-
-			ImGui::SliderFloat(("emissive :" + to_string(index)).c_str(), &material->emissiveStrength, 0,
-
-			                   10.0f);
-
+			MaterialEdit(index, material);
 			index++;
-
-			if (ImGui::IsItemEdited())
-
-			{
-				ResetAccumulator();
-			}
 		}
 	}
 }

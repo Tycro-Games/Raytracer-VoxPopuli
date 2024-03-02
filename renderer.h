@@ -23,7 +23,10 @@ namespace Tmpl8
 		// game flow methods
 		void Init() override;
 		void Illumination(Ray& ray, float3& incLight);
+		static float3 Reflect(float3 direction, float3 normal);
+		static float3 Refract(float3 direction, float3 normal, float IORRatio);
 		float3 Trace(Ray& ray, int depth);
+		static float Reflectance(float cosine, float ref_idx);
 		void Tick(float deltaTime) override;
 		float3 ApplyReinhardJodie(const float3& color);
 		float GetLuminance(const float3& color);
@@ -97,7 +100,7 @@ namespace Tmpl8
 		int32_t numCheckShadowsAreaLight = 3;
 		// Get a list of .vox files in the assets folder
 		std::vector<std::string> voxFiles;
-		int matTypeSphere = MaterialType::EMISSIVE;
+		int matTypeSphere = MaterialType::GLASS;
 
 		//BVH
 		BasicBVH bvh;

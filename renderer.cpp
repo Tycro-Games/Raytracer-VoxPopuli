@@ -233,7 +233,7 @@ void Renderer::MaterialSetUp()
 	const auto materialDifRefMid = make_shared<ReflectivityMaterial>(float3(0, 1, 1), 0.5f);
 	const auto materialDifRefLow = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
 	//partial mirror
-	const auto glass = make_shared<ReflectivityMaterial>(float3(1, 1, 0));
+	const auto glass = make_shared<ReflectivityMaterial>(float3(1, 1, 1));
 	glass->IOR = 1.45f;
 	const auto emissive = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
 	emissive->emissiveStrength = 1.0f;
@@ -329,6 +329,20 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
 	incLight *= LIGHT_COUNT;
 }
 
+float3 Renderer::Reflect(float3 direction, const float3 normal)
+{
+	return direction - 2 * normal * dot(normal, direction);
+}
+
+//from ray tracing in one weekend
+float3 Renderer::Refract(float3 direction, const float3 normal, float IORRatio)
+{
+	const float cos_theta = min(dot(-direction, normal), 1.0f);
+	const float3 r_out_perp = IORRatio * (direction + cos_theta * normal);
+	const float3 r_out_parallel = -sqrtf(fabsf(1.0f - sqrLength(r_out_perp))) * normal;
+	return r_out_perp + r_out_parallel;
+}
+
 // -----------------------------------------------------------
 // Evaluate light transport
 // -----------------------------------------------------------
@@ -357,7 +371,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::METAL_HIGH:
 	case MaterialType::METAL_LOW:
 		{
-			float3 reflectedDirection = ray.D - 2 * N * dot(N, ray.D);
+			float3 reflectedDirection = Reflect(N, ray.D);
 			newRay = Ray{
 				OffsetRay(I, N), reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 			};
@@ -372,6 +386,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::NON_METAL_BLUE:
 	case MaterialType::NON_METAL_GREEN:
 		{
+			//TODO add fresnel from Remi
 			float3 color{0};
 			bool isDiffuse = RandomFloat() < ray.GetRoughness(mainScene);
 			if (isDiffuse)
@@ -393,24 +408,49 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			}
 			return color;
 		}
+	//mostly based on Ray tracing in one weekend
 	case MaterialType::GLASS:
 		{
 			//code for glass
+			bool isInGlass = ray.isInsideGlass;
 			float IORMaterial = ray.GetRefractivity(mainScene); //1.45
-			float IORR = 1.0f / IORMaterial;
-
-			Ray enteringRay{Ray::GetRefractedRay(ray, IORR)};
-			//we are still inside the voxel world
-			if (mainScene.FindMaterialExit(enteringRay, MaterialType::GLASS))
+			//get the IOR
+			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
+			bool isInsideVolume = true;
+			//we need to get to the next voxel
+			if (isInGlass)
 			{
-				Ray exitingRay{Ray::GetRefractedRay(enteringRay, IORMaterial)};
-				float3 light{0};
-				Illumination(ray, light);
-
-				return ray.GetAlbedo(mainScene) * light + Trace(exitingRay, depth - 1);
+				isInsideVolume = mainScene.FindMaterialExit(ray, MaterialType::GLASS);
 			}
-			//we are outside the volume
-			return skyDome.SampleSky(ray);
+			//outside bounds
+			if (!isInsideVolume)
+				return skyDome.SampleSky(ray);
+
+			float cosTheta = min(dot(-ray.D, ray.GetNormal()), 1.0f);
+			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+			bool cannotRefract = refractionRatio * sinTheta > 1.0;
+
+			float3 resultingDirection;
+			float3 normal = ray.GetNormal();
+			//this may be negative if we refract
+			float3 resultingNormal;
+			if (cannotRefract || Reflectance(cosTheta, refractionRatio) > RandomFloat())
+			{
+				//reflect!
+				resultingDirection = Reflect(ray.D, normal);
+				resultingNormal = normal;
+			}
+			else
+			{
+				//we are exiting or entering the glass
+				resultingDirection = Refract(ray.D, normal, refractionRatio);
+				isInGlass = !isInGlass;
+				resultingNormal = -normal;
+			}
+			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
+			newRay.isInsideGlass = isInGlass;
+			return Trace(newRay, depth - 1);
 		}
 	case MaterialType::EMISSIVE:
 		return ray.GetAlbedo(mainScene) * ray.GetEmissive(mainScene);
@@ -428,6 +468,15 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 	//fixes a warning
 	return {0};
+}
+
+//From raytracing in one weekend
+float Renderer::Reflectance(float cosine, float ref_idx)
+{
+	// Use Schlick's approximation for reflectance.
+	auto r0 = (1 - ref_idx) / (1 + ref_idx);
+	r0 = r0 * r0;
+	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
 // -----------------------------------------------------------
@@ -808,7 +857,7 @@ void Renderer::HandleImguiGeneral()
 	std::vector<const char*> cStr; // ImGui needs const char* array
 
 
-	ImGui::SliderInt("Material Types", &matTypeSphere, 0, MaterialType::GLASS);
+	ImGui::SliderInt("Material Types", &matTypeSphere, 0, MaterialType::EMISSIVE);
 
 	//from Sven 232380
 
@@ -930,9 +979,9 @@ void Renderer::HandleImguiMaterials()
 				ResetAccumulator();
 			}
 
-			ImGui::SliderFloat(("roughness :" + to_string(index)).c_str(), &material->roughness, 0,
+			ImGui::SliderFloat(("ior :" + to_string(index)).c_str(), &material->IOR, 1.0f,
 
-			                   1.0f);
+			                   2.4f);
 
 			index++;
 

@@ -22,30 +22,6 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 }
 
 
-Ray Ray::GetRefractedRay(const Ray& ray, const float IORRatio)
-{
-	const float3 rayIn = ray.D;
-	const float3 rayNormal = ray.GetNormal();
-
-	const float cosTheta = min(dot(-rayIn, rayNormal), 1.0f);
-	const float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-	bool cannotRefract = IORRatio * sinTheta > 1.0f;
-
-	const float3 rayOutPerpendicular = IORRatio * (rayIn + cosTheta * rayNormal);
-	const float3 rayOutParallel = -sqrtf(fabsf(1.0f - sqrLength(rayOutPerpendicular))) *
-		rayNormal;
-	float3 direction;
-	if (cannotRefract || Reflectance(cosTheta, IORRatio) > RandomFloat())
-	{
-		direction = {ray.D - 2 * rayNormal * dot(rayNormal, ray.D)};
-	}
-	else
-	{
-		direction = rayOutPerpendicular + rayOutParallel;
-	}
-	return {OffsetRay(ray.IntersectionPoint(), rayNormal), direction};
-}
-
 float3 Ray::GetNormal() const
 {
 	// return the voxel normal at the nearest intersection

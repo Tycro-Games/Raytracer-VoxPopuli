@@ -60,7 +60,7 @@ namespace Tmpl8
 		}
 
 		//from Ray tracing in one weekend
-		static Ray GetRefractedRay(const Ray& ray, const float IORRatio);
+		static Ray GetRefractedRay(const Ray& ray, const float IORRatio, bool& isReflected);
 
 		float3 GetNormal() const;
 		float3 UintToFloat3(uint col) const;
@@ -78,8 +78,7 @@ namespace Tmpl8
 		float3 D = float3(0); // ray direction
 		float t = 1e34f; // ray length
 		float3 Dsign = float3(1); // inverted ray direction signs, -1 or 1
-
-
+		bool isInsideGlass = false;
 		MaterialType::MatType indexMaterial = MaterialType::NONE; //replace grid color with material index
 
 

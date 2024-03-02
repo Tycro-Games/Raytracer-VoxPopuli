@@ -47,7 +47,7 @@ namespace Tmpl8
 		bool HandleInput(const float t)
 		{
 			if (!WindowHasFocus()) return false;
-			const float speed = 0.0025f * t;
+			const float speed = 0.00015f * t;
 			ahead = normalize(camTarget - camPos);
 			const float3 tmpUp(0, 1, 0);
 			right = normalize(cross(tmpUp, ahead));

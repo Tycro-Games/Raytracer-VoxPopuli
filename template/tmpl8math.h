@@ -456,14 +456,6 @@ inline int2 make_int2(const int a, const int b)
 	return i2;
 }
 
-//From raytracing in one weekend
-static float Reflectance(float cosine, float ref_idx)
-{
-	// Use Schlick's approximation for reflectance.
-	auto r0 = (1 - ref_idx) / (1 + ref_idx);
-	r0 = r0 * r0;
-	return r0 + (1 - r0) * pow((1 - cosine), 5);
-}
 
 inline int2 make_int2(const int s)
 {

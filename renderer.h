@@ -83,6 +83,7 @@ namespace Tmpl8
 		Camera camera;
 		float frqGenerationPerlinNoise = .03f;
 		float HDRLightContribution = 1.5f;
+		float antiAliasingStrength = 1.0f;
 		//materials
 		std::vector<shared_ptr<ReflectivityMaterial>> metalMaterials;
 		std::vector<shared_ptr<ReflectivityMaterial>> nonMetalMaterials;

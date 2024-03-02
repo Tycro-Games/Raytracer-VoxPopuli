@@ -436,7 +436,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			bool cannotRefract = refractionRatio * sinTheta > 1.0;
 
 			float3 resultingDirection;
-			float3 normal = ray.GetNormal();
+
 			//this may be negative if we refract
 			float3 resultingNormal;
 			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
@@ -826,9 +826,19 @@ void Renderer::HandleImguiGeneral()
 		ResetAccumulator();
 	}
 
-	ImGui::Text("Camera look ahead %.2f,  %.2f,  %.2f:", camera.ahead.x, camera.ahead.y,
 
-	            camera.ahead.z);
+	ImGui::SliderFloat("AA strength", &antiAliasingStrength, 0.0f, 1.0f);
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
+
+	if (ImGui::IsItemEdited())
+		ImGui::Text("Camera look ahead %.2f,  %.2f,  %.2f:", camera.ahead.x, camera.ahead.y,
+
+		            camera.ahead.z);
 
 	if (ImGui::IsItemEdited())
 

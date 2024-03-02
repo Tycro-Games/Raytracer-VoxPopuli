@@ -23,7 +23,7 @@ class BasicBVH
 {
 public:
 	BasicBVH();
-	void IntersectTri(Ray& ray, const Tri& tri);
+	void IntersectTri(Ray& ray, const Tri& _tri);
 
 
 	bool IntersectAABB(const Ray& ray, float3 bmin, float3 bmax);

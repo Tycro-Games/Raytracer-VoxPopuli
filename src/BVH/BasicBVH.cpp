@@ -15,15 +15,15 @@ BasicBVH::BasicBVH()
 	BuildBVH();
 }
 
-void BasicBVH::IntersectTri(Ray& ray, const Tri& tri)
+void BasicBVH::IntersectTri(Ray& ray, const Tri& _tri)
 {
-	const float3 edge1 = tri.vertex1 - tri.vertex0;
-	const float3 edge2 = tri.vertex2 - tri.vertex0;
+	const float3 edge1 = _tri.vertex1 - _tri.vertex0;
+	const float3 edge2 = _tri.vertex2 - _tri.vertex0;
 	const float3 h = cross(ray.D, edge2);
 	const float a = dot(edge1, h);
 	if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
 	const float f = 1 / a;
-	const float3 s = ray.O - tri.vertex0;
+	const float3 s = ray.O - _tri.vertex0;
 	const float u = f * dot(s, h);
 	if (u < 0 || u > 1) return;
 	const float3 q = cross(s, edge1);

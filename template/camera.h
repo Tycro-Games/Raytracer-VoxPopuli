@@ -29,13 +29,12 @@ namespace Tmpl8
 			const float v = y * (1.0f / SCRHEIGHT);
 			const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
 
-			const float jitterX = defocusJitter.x * (RandomFloat() - 0.5f);
-			const float jitterY = defocusJitter.y * (RandomFloat() - 0.5f);
-			//Remi fixed this implementation
+			const float2 jitter = RandomPointInCircle() * defocusJitter;
+			//Remi fixed this implementation by using the correct focal point
 
 
 			const float3 focalPoint = camPos + focalDistance * normalize(P - camPos);
-			const float3 rayOrigin = camPos + jitterX * right + jitterY * up;
+			const float3 rayOrigin = camPos + jitter.x * right + jitter.y * up;
 
 			const float3 rayDirection = normalize(focalPoint - rayOrigin);
 
@@ -104,6 +103,6 @@ namespace Tmpl8
 		float3 topLeft, topRight, bottomLeft;
 		const float stopAngle = 0.8f;
 		float focalDistance{0};
-		float2 defocusJitter{0, 0};
+		float defocusJitter{0};
 	};
 }

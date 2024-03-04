@@ -389,6 +389,8 @@ float3 RandomHemisphereDirection(float3 normal);
 float3 GenerateRandomUnitVector();
 uint RandomUInt(uint& seed);
 float RandomFloat();
+float2 RandomPointInCircle();
+
 float RandomFloat(uint& seed);
 float Rand(float range);
 

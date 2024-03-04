@@ -810,7 +810,7 @@ void Renderer::HandleImguiGeneral()
 		ResetAccumulator();
 	}
 
-	ImGui::SliderFloat2("DOF strength", camera.defocusJitter.cell, 0.0f, 2.0f);
+	ImGui::SliderFloat("DOF strength", &camera.defocusJitter, 0.0f, 2.0f);
 
 	if (ImGui::IsItemEdited())
 

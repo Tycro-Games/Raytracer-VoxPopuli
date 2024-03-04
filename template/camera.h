@@ -22,17 +22,17 @@ namespace Tmpl8
 			ahead = normalize(camTarget - camPos);
 		}
 
-		Ray GetPrimaryRay(const float x, const float y) const
+		Ray GetPrimaryRay(const float x, const float y)
 		{
 			//conceptually used https://youtu.be/Qz0KTGYJtUk?si=9en1nLsgxqQyoGW2&t=2113
 			const float u = x * (1.0f / SCRWIDTH);
 			const float v = y * (1.0f / SCRHEIGHT);
 			const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
 
-			const float2 jitter = RandomPointInCircle() * defocusJitter;
+			const float2 jitter = RandomPointInCircle() * defocusJitter / SCRWIDTH;
 			//Remi fixed this implementation by using the correct focal point
 
-
+			//focalDistance = (focalTargetDistance + focalDistance) * .5f;
 			const float3 focalPoint = camPos + focalDistance * normalize(P - camPos);
 			const float3 rayOrigin = camPos + jitter.x * right + jitter.y * up;
 
@@ -102,7 +102,8 @@ namespace Tmpl8
 		float3 camPos, camTarget;
 		float3 topLeft, topRight, bottomLeft;
 		const float stopAngle = 0.8f;
-		float focalDistance{0};
+		float focalDistance{1.0f};
+		float focalTargetDistance{1.0f};
 		float defocusJitter{0};
 	};
 }

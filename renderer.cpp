@@ -488,6 +488,16 @@ float Renderer::SchlickReflectance(const float cosine, const float indexOfRefrac
 // -----------------------------------------------------------
 void Renderer::Tick(const float deltaTime)
 {
+	//DOF
+	if (camera.defocusJitter > 0.0f)
+	{
+		Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
+		mainScene.FindNearest(focusRay);
+
+		camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
+	}
+
+
 	// pixel loop
 	const Timer t;
 
@@ -810,7 +820,7 @@ void Renderer::HandleImguiGeneral()
 		ResetAccumulator();
 	}
 
-	ImGui::SliderFloat("DOF strength", &camera.defocusJitter, 0.0f, 2.0f);
+	ImGui::SliderFloat("DOF strength", &camera.defocusJitter, 0.0f, 50.0f);
 
 	if (ImGui::IsItemEdited())
 
@@ -818,7 +828,7 @@ void Renderer::HandleImguiGeneral()
 		ResetAccumulator();
 	}
 
-	ImGui::DragFloat("Focal Point distance", &camera.focalDistance, .1f, -1.0f, 100.0f);
+	ImGui::DragFloat("Focal Point distance", &camera.focalTargetDistance, .1f, 0.3f, 100.0f);
 
 	if (ImGui::IsItemEdited())
 

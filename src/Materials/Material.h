@@ -8,7 +8,7 @@ public:
 	float3 albedo{1};
 	float roughness{0};
 	float emissiveStrength{0};
-	float IOR{0.04f};
+	float IOR{1.5f};
 };
 
 

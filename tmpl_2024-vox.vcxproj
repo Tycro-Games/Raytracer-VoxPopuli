@@ -126,6 +126,7 @@
   <!-- END Custom section -->
   <ItemGroup>
     <ClCompile Include="src\BVH\BasicBVH.cpp" />
+    <ClCompile Include="src\BVH\Shapes.cpp" />
     <ClCompile Include="src\Lighting\SkyDome.cpp" />
     <ClCompile Include="src\Lighting\SphereAreaLight.cpp" />
     <ClCompile Include="src\Lighting\SpotLight.cpp" />
@@ -155,6 +156,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\BVH\BasicBVH.h" />
+    <ClInclude Include="src\BVH\Shapes.h" />
     <ClInclude Include="src\Lighting\SkyDome.h" />
     <ClInclude Include="src\Lighting\SphereAreaLight.h" />
     <ClInclude Include="src\Lighting\SpotLight.h" />

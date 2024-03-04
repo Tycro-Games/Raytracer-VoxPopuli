@@ -22,7 +22,7 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 }
 
 
-float3 Ray::GetNormal() const
+float3 Ray::GetNormalVoxel() const
 {
 	// return the voxel normal at the nearest intersection
 	const float3 I1 = (O + t * D) * WORLDSIZE; // our mainScene size is (1,1,1), so this scales each voxel to (1,1,1)

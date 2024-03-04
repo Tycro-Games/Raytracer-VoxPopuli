@@ -20,6 +20,7 @@ namespace Tmpl8
 		static float3 DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData);
 		void ResetAccumulator();
 		void MaterialSetUp();
+		void ShapesSetUp();
 		// game flow methods
 		void Init() override;
 		void Illumination(Ray& ray, float3& incLight);
@@ -27,6 +28,7 @@ namespace Tmpl8
 		static float3 Refract(float3 direction, float3 normal, float IORRatio);
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
+		float SchlickReflectanceNonMetal(const float cosine);
 		void Tick(float deltaTime) override;
 		float3 ApplyReinhardJodie(const float3& color);
 		float GetLuminance(const float3& color);
@@ -34,7 +36,7 @@ namespace Tmpl8
 		void HandleImguiAreaLights();
 		void HandleImguiSpotLights();
 		void HandleImguiDirectionalLight();
-		void HandleImguiGeneral();
+		void HandleImguiCamera();
 		void MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material);
 		void HandleImguiMaterials();
 		void UI() override;
@@ -102,6 +104,7 @@ namespace Tmpl8
 		int32_t numCheckShadowsAreaLight = 3;
 		// Get a list of .vox files in the assets folder
 		std::vector<std::string> voxFiles;
+		std::vector<Sphere> spheres;
 		int matTypeSphere = MaterialType::GLASS;
 
 		//BVH

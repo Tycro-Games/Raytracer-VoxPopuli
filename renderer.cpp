@@ -84,14 +84,14 @@ void Renderer::SetUpLights()
 float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData& lightData)
 {
 	//Getting the intersection point
-	const float3 intersectionPoint = ray.O + ray.t * ray.D;
+	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 dir = lightData.position - intersectionPoint;
 	const float dst = length(dir);
 
 	//reciprocal is faster than division
 	const float3 dirNormalized = dir * (1 / dst);
 
-	const float3 normal = ray.GetNormal();
+	const float3 normal = ray.rayNormal;
 	//Having a negative dot product means the light is behind the point
 	const float cosTheta = dot(dirNormalized, normal);
 	if (cosTheta <= 0)
@@ -114,12 +114,12 @@ float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData
 
 float3 Renderer::SpotLightEvaluate(Ray& ray, Scene& scene, const SpotLightData& lightData)
 {
-	const float3 intersectionPoint = ray.O + ray.t * ray.D;
+	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 dir = lightData.position - intersectionPoint;
 	float dst = length(dir);
 	float3 dirNormalized = dir / dst;
 
-	float3 normal = ray.GetNormal();
+	float3 normal = ray.rayNormal;
 	//light angle
 	float cosTheta = dot(dirNormalized, lightData.direction);
 	if (cosTheta <= lightData.angle)
@@ -142,8 +142,8 @@ float3 Renderer::SpotLightEvaluate(Ray& ray, Scene& scene, const SpotLightData& 
 
 float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const
 {
-	const float3 intersectionPoint = ray.O + ray.t * ray.D;
-	const float3 normal = ray.GetNormal();
+	const float3 intersectionPoint = ray.IntersectionPoint();
+	const float3 normal = ray.rayNormal;
 	const float3 center = lightData.position;
 	const float radius = lightData.radius;
 	float3 incomingLight{0};
@@ -190,11 +190,12 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLig
 
 float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData)
 {
-	const float3 intersectionPoint = ray.O + ray.t * ray.D;
+	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 dir = -lightData.direction;
 	const float3 attenuation = dir;
 
-	const float3 normal = ray.GetNormal();
+	const float3 normal = ray.rayNormal;
+
 	//light angle
 	const float cosTheta = dot(attenuation, normal);
 	if (cosTheta <= 0)
@@ -271,6 +272,11 @@ void Renderer::MaterialSetUp()
 	}
 }
 
+void Renderer::ShapesSetUp()
+{
+	spheres.push_back(Sphere(float3{0}, .5, MaterialType::NON_METAL_WHITE));
+}
+
 void Renderer::Init()
 {
 	InitSeed(static_cast<uint>(time(nullptr)));
@@ -300,19 +306,24 @@ void Renderer::Init()
 
 	//Lighting set-up
 	SetUpLights();
+	//shape set-up
+	ShapesSetUp();
 	//Material set-up
 	MaterialSetUp();
 }
 
 void Renderer::Illumination(Ray& ray, float3& incLight)
 {
+	//random light type
 	const auto lightType = static_cast<size_t>(Rand(MAX_LIGHT_TYPES - 1));
+	//random index of the element inside a light type array
 	const auto p = static_cast<size_t>(Rand(POINT_LIGHTS));
 	const auto s = static_cast<size_t>(Rand(SPOT_LIGHTS));
 	const auto a = static_cast<size_t>(Rand(AREA_LIGHTS));
 	switch (lightType)
 	{
 	case 0:
+		//every method evaluates to the light
 		incLight = PointLightEvaluate(ray, mainScene, pointLights[p].data);
 		break;
 	case 1:
@@ -352,16 +363,33 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	{
 		return {0};
 	}
+	Ray sphereHit{ray.O, ray.D};
+
 	mainScene.FindNearest(ray);
+
+	for (auto& sphere : spheres)
+	{
+		sphere.Hit(sphereHit);
+	}
+	ray.rayNormal = ray.GetNormalVoxel();
+
+	if (ray.t > sphereHit.t)
+	{
+		ray.t = sphereHit.t;
+		ray.indexMaterial = sphereHit.indexMaterial;
+		ray.rayNormal = sphereHit.rayNormal;
+		ray.isInsideGlass = sphereHit.isInsideGlass;
+	}
+
 	// Break early if no intersection
 	if (ray.indexMaterial == MaterialType::NONE)
 	{
 		return skyDome.SampleSky(ray);
 	}
+	//return .5f * (normal + 1);
 
-	const float3 normal = ray.GetNormal();
 	const float3 intersectionPoint = ray.IntersectionPoint();
-
+	//return intersectionPoint;
 	Ray newRay;
 
 	switch (ray.indexMaterial)
@@ -371,9 +399,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::METAL_HIGH:
 	case MaterialType::METAL_LOW:
 		{
-			float3 reflectedDirection = Reflect(ray.D, normal);
+			float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 			newRay = Ray{
-				OffsetRay(intersectionPoint, normal),
+				OffsetRay(intersectionPoint, ray.rayNormal),
 				reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 			};
 			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
@@ -389,20 +417,20 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		{
 			//TODO add fresnel from Remi
 			float3 color{0};
-			if (RandomFloat() > SchlickReflectance(dot(-ray.D, normal), ray.GetRefractivity(mainScene)))
+			if (RandomFloat() > SchlickReflectanceNonMetal(dot(-ray.D, ray.rayNormal)))
 			{
 				float3 incLight{0};
-				float3 randomDirection = DiffuseReflection(normal);
+				float3 randomDirection = DiffuseReflection(ray.rayNormal);
 				Illumination(ray, incLight);
-				newRay = Ray{OffsetRay(intersectionPoint, normal), randomDirection};
+				newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
 				color += incLight;
 				color += Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
 			}
 			else
 			{
-				float3 reflectedDirection = ray.D - 2 * normal * dot(normal, ray.D);
+				float3 reflectedDirection = ray.D - 2 * ray.rayNormal * dot(ray.rayNormal, ray.D);
 				newRay = Ray{
-					OffsetRay(intersectionPoint, normal),
+					OffsetRay(intersectionPoint, ray.rayNormal),
 					reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 				};
 				color += Trace(newRay, depth - 1);
@@ -430,7 +458,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			if (!isInsideVolume)
 				return skyDome.SampleSky(ray);
 
-			float cosTheta = min(dot(-ray.D, ray.GetNormal()), 1.0f);
+			float cosTheta = min(dot(-ray.D, ray.GetNormalVoxel()), 1.0f);
 			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 
 			bool cannotRefract = refractionRatio * sinTheta > 1.0;
@@ -442,15 +470,15 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
 			{
 				//reflect!
-				resultingDirection = Reflect(ray.D, normal);
-				resultingNormal = normal;
+				resultingDirection = Reflect(ray.D, ray.rayNormal);
+				resultingNormal = ray.rayNormal;
 			}
 			else
 			{
 				//we are exiting or entering the glass
-				resultingDirection = Refract(ray.D, normal, refractionRatio);
+				resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
 				isInGlass = !isInGlass;
-				resultingNormal = -normal;
+				resultingNormal = -ray.rayNormal;
 			}
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
@@ -464,9 +492,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	//random materials from the models
 	default:
 		float3 incLight{0};
-		float3 randomDirection = DiffuseReflection(normal);
+		float3 randomDirection = DiffuseReflection(ray.rayNormal);
 		Illumination(ray, incLight);
-		newRay = Ray{OffsetRay(intersectionPoint, normal), randomDirection};
+		newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
 		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
 	}
 
@@ -480,6 +508,14 @@ float Renderer::SchlickReflectance(const float cosine, const float indexOfRefrac
 	// Use Schlick's approximation for reflectance.
 	auto r0 = (1 - indexOfRefraction) / (1 + indexOfRefraction);
 	r0 = r0 * r0;
+	return r0 + (1 - r0) * powf((1 - cosine), 5);
+}
+
+//From Remi
+float Renderer::SchlickReflectanceNonMetal(const float cosine)
+{
+	//for diffuse
+	const auto r0 = 0.04f;
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
@@ -781,10 +817,10 @@ void Renderer::HandleImguiDirectionalLight()
 //}
 
 
-void Renderer::HandleImguiGeneral()
+void Renderer::HandleImguiCamera()
 
 {
-	if (!ImGui::CollapsingHeader("General"))
+	if (!ImGui::CollapsingHeader("Camera"))
 
 		return;
 
@@ -795,6 +831,21 @@ void Renderer::HandleImguiGeneral()
 	{
 		ResetAccumulator();
 	}
+	ImGui::SliderFloat3("Pos SPhere", spheres[0].center.cell, -5.0f, 5.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+	ImGui::SliderFloat("Rad SPHere", &spheres[0].radius, 0.001f, 5.5f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+
 
 	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 10.0f);
 
@@ -1051,7 +1102,7 @@ void Renderer::UI()
 	ImGui::BeginChild("General");
 
 
-	HandleImguiGeneral();
+	HandleImguiCamera();
 
 
 	ImGui::EndChild();

@@ -8,7 +8,7 @@ float3 SpotLight::Evaluate(Ray& ray, Scene& scene)
 	float dst = length(dir);
 	float3 dirNormalized = dir / dst;
 
-	float3 normal = ray.GetNormal();
+	float3 normal = ray.GetNormalVoxel();
 	//light angle
 	float cosTheta = dot(dirNormalized, data.direction);
 	if (cosTheta <= data.angle)

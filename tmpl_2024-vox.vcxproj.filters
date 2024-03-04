@@ -46,6 +46,7 @@
     <ClCompile Include="src\BVH\BasicBVH.cpp" />
     <ClCompile Include="src\Materials\Material.cpp" />
     <ClCompile Include="src\Lighting\SphereAreaLight.cpp" />
+    <ClCompile Include="src\BVH\Shapes.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="renderer.h" />
@@ -106,6 +107,7 @@
     <ClInclude Include="src\BVH\BasicBVH.h" />
     <ClInclude Include="src\Materials\Material.h" />
     <ClInclude Include="src\Lighting\SphereAreaLight.h" />
+    <ClInclude Include="src\BVH\Shapes.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="template">

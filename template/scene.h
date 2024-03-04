@@ -62,7 +62,7 @@ namespace Tmpl8
 		//from Ray tracing in one weekend
 		static Ray GetRefractedRay(const Ray& ray, const float IORRatio, bool& isReflected);
 
-		float3 GetNormal() const;
+		float3 GetNormalVoxel() const;
 		float3 UintToFloat3(uint col) const;
 		float3 GetAlbedo(const Scene& scene) const;
 		float3 GetEmissive(const Scene& scene) const;
@@ -83,7 +83,7 @@ namespace Tmpl8
 
 
 		int8_t depth = 5;
-		float3 rayColor{1};
+		float3 rayNormal{0};
 		// 32-bit ARGB color of a voxelhit object index; 0 = NONE
 	private:
 		// min3 is used in normal reconstruction.

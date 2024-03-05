@@ -3,7 +3,7 @@
 namespace Tmpl8
 {
 	constexpr size_t POINT_LIGHTS = 2;
-	constexpr size_t AREA_LIGHTS = 1;
+	constexpr size_t AREA_LIGHTS = 2;
 	constexpr size_t SPOT_LIGHTS = 2;
 	constexpr size_t MAX_LIGHT_TYPES = 4;
 	//+1 for directional light
@@ -23,6 +23,8 @@ namespace Tmpl8
 		void MaterialSetUp();
 		void AddSphere();
 		void RemoveLastSphere();
+		void AddTriangle();
+		void RemoveTriangle();
 		void ShapesSetUp();
 		// game flow methods
 		void Init() override;
@@ -42,7 +44,8 @@ namespace Tmpl8
 		void HandleImguiCamera();
 		void MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material);
 		void HandleImguiMaterials();
-		void HandleImguiEntities();
+		void HandleImguiSpheres();
+		void HandleImguiTriangles();
 		void UI() override;
 		void Shutdown() override;
 		/* Input
@@ -109,6 +112,7 @@ namespace Tmpl8
 		// Get a list of .vox files in the assets folder
 		std::vector<std::string> voxFiles;
 		std::vector<Sphere> spheres;
+		std::vector<Triangle> triangles;
 		int matTypeSphere = MaterialType::GLASS;
 
 		//BVH

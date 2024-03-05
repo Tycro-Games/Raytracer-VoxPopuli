@@ -61,3 +61,78 @@ struct Sphere
 	float radius;
 	MaterialType::MatType material = MaterialType::NONE;
 };
+
+//based on https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+struct Triangle
+{
+	void SetPos(const float3& pos);
+	Triangle(MaterialType::MatType m);
+	Triangle();
+	float3 vertex0, vertex1, vertex2;
+	float3 centroid;
+	float3 position;
+
+	void Hit(Ray& ray) const
+	{
+		float3 p1 = position, p2 = position, p3 = position;
+		p1 += vertex0;
+		p2 += vertex1;
+		p3 += vertex2;
+		const float3 edge1 = p2 - p1;
+		const float3 edge2 = p3 - p1;
+		const float3 h = cross(ray.D, edge2);
+		const float a = dot(edge1, h);
+		if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
+		const float f = 1 / a;
+		const float3 s = ray.O - p1;
+		const float u = f * dot(s, h);
+		if (u < 0 || u > 1) return;
+		const float3 q = cross(s, edge1);
+		const float v = f * dot(ray.D, q);
+		if (v < 0 || u + v > 1) return;
+		const float t = f * dot(edge2, q);
+		if (t > 0.0001f)
+		{
+			if (ray.t > t)
+			{
+				ray.t = t;
+				ray.indexMaterial = material;
+				float3 normal = normalize(cross(edge1, edge2));
+				const bool rayOutsideSphere{dot(ray.D, normal) < 0};
+				ray.rayNormal = rayOutsideSphere ? normal : -normal;
+			}
+		}
+	}
+
+	bool IsHit(const Ray& ray) const
+	{
+		float3 p1 = position, p2 = position, p3 = position;
+		p1 += vertex0;
+		p2 += vertex1;
+		p3 += vertex2;
+		const float3 edge1 = p2 - p1;
+		const float3 edge2 = p3 - p1;
+		const float3 h = cross(ray.D, edge2);
+		const float a = dot(edge1, h);
+		if (a > -0.0001f && a < 0.0001f) return false; // ray parallel to triangle
+		const float f = 1 / a;
+		const float3 s = ray.O - p1;
+		const float u = f * dot(s, h);
+		if (u < 0 || u > 1) return false;
+		const float3 q = cross(s, edge1);
+		const float v = f * dot(ray.D, q);
+		if (v < 0 || u + v > 1) return false;
+		const float t = f * dot(edge2, q);
+		if (t < 0.0001f)
+		{
+			return false;
+		}
+		if (t > ray.t)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	MaterialType::MatType material = MaterialType::NONE;
+};

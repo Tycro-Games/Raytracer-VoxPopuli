@@ -190,14 +190,20 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLig
 
 bool Renderer::IsOccluded(Ray& ray) const
 {
-	bool hitSphere = false;
+	if (mainScene.IsOccluded(ray))
+		return true;
+
 	for (auto& sphere : spheres)
 	{
 		if (sphere.IsHit(ray))
-			hitSphere = true;
+			return true;
 	}
-	if (mainScene.IsOccluded(ray))
-		return true;
+	for (auto& tri : triangles)
+	{
+		if (tri.IsHit(ray))
+			return true;
+	}
+
 	return false;
 }
 
@@ -293,6 +299,16 @@ void Renderer::AddSphere()
 void Renderer::RemoveLastSphere()
 {
 	spheres.pop_back();
+}
+
+void Renderer::AddTriangle()
+{
+	triangles.push_back(Triangle{static_cast<MaterialType::MatType>(Rand(MaterialType::EMISSIVE))});
+}
+
+void Renderer::RemoveTriangle()
+{
+	triangles.pop_back();
 }
 
 void Renderer::ShapesSetUp()
@@ -397,7 +413,11 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		{
 			sphere.Hit(sphereHit);
 		}
-
+		for (auto& triangle : triangles)
+		{
+			triangle.Hit(sphereHit);
+		}
+		//change to the closest ray information
 		if (ray.t > sphereHit.t)
 		{
 			ray.t = sphereHit.t;
@@ -485,7 +505,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float cosTheta = min(dot(-ray.D, ray.GetNormalVoxel()), 1.0f);
 			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 
-			bool cannotRefract = refractionRatio * sinTheta > 1.0;
+			bool cannotRefract = refractionRatio * sinTheta > 1.0f;
 
 			float3 resultingDirection;
 
@@ -1064,7 +1084,7 @@ void Renderer::HandleImguiMaterials()
 	}
 }
 
-void Renderer::HandleImguiEntities()
+void Renderer::HandleImguiSpheres()
 {
 	if (!ImGui::CollapsingHeader("Spheres"))
 
@@ -1116,6 +1136,51 @@ void Renderer::HandleImguiEntities()
 
 // -----------------------------------------------------------
 
+void Renderer::HandleImguiTriangles()
+{
+	if (!ImGui::CollapsingHeader("Triangles"))
+
+		return;
+
+	int sphereIndex = 0;
+
+	for (auto& triangle : triangles)
+	{
+		float3 pos = triangle.position;
+		if (ImGui::SliderFloat3(("Triangle position:" + to_string(sphereIndex)).c_str(), pos.cell, -5.0f, 5.0f))
+		{
+			triangle.SetPos(pos);
+		}
+
+		if (ImGui::IsItemEdited())
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderInt(("Triangle Material Type" + to_string(sphereIndex)).c_str(),
+		                 reinterpret_cast<int*>(&triangle.material),
+		                 0,
+		                 MaterialType::EMISSIVE);
+		if (ImGui::IsItemEdited())
+		{
+			ResetAccumulator();
+		}
+
+		sphereIndex++;
+	}
+	if (ImGui::Button("Create 5 new Triangles"))
+	{
+		for (int i = 0; i < 5; i++)
+			AddTriangle();
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Delete last Triangle"))
+	{
+		RemoveTriangle();
+		ResetAccumulator();
+	}
+}
+
 void Renderer::UI()
 
 {
@@ -1155,7 +1220,9 @@ void Renderer::UI()
 	if (ImGui::CollapsingHeader("Entities"))
 
 	{
-		HandleImguiEntities();
+		HandleImguiSpheres();
+
+		HandleImguiTriangles();
 	}
 
 	ImGui::BeginChild("General");

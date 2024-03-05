@@ -99,42 +99,42 @@ float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData
 	//the  formula for distance attenuation 
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color * (1.0f / (dst * dst));
 	//materi
-	float3 originRay = OffsetRay(intersectionPoint, normal);
+	const float3 originRay = OffsetRay(intersectionPoint, normal);
 	const float3 k = ray.GetAlbedo(scene);
 
 	Ray shadowRay(originRay, dirNormalized);
 	// we do not shoot the ray behind the light source
 	shadowRay.t = dst;
-	if (scene.IsOccluded(shadowRay))
+	if (IsOccluded(shadowRay))
 		return 0;
 
 
 	return lightIntensity * k;
 }
 
-float3 Renderer::SpotLightEvaluate(Ray& ray, Scene& scene, const SpotLightData& lightData)
+float3 Renderer::SpotLightEvaluate(const Ray& ray, const Scene& scene, const SpotLightData& lightData)
 {
 	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 dir = lightData.position - intersectionPoint;
-	float dst = length(dir);
-	float3 dirNormalized = dir / dst;
+	const float dst = length(dir);
+	const float3 dirNormalized = dir / dst;
 
-	float3 normal = ray.rayNormal;
+	const float3 normal = ray.rayNormal;
 	//light angle
-	float cosTheta = dot(dirNormalized, lightData.direction);
+	const float cosTheta = dot(dirNormalized, lightData.direction);
 	if (cosTheta <= lightData.angle)
 		return 0;
 
-	float alphaCutOff = 1.0f - (1.0f - cosTheta) * 1.0f / (1.0f - lightData.angle);
+	const float alphaCutOff = 1.0f - (1.0f - cosTheta) * 1.0f / (1.0f - lightData.angle);
 
-	float3 lightIntensity = max(0.0f, cosTheta) * lightData.color / (dst * dst);
+	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color / (dst * dst);
 	//material evaluation
 	const float3 k = ray.GetAlbedo(scene);
 
 
 	Ray shadowRay(OffsetRay(intersectionPoint, normal), dirNormalized);
 	shadowRay.t = dst;
-	if (scene.IsOccluded(shadowRay))
+	if (IsOccluded(shadowRay))
 		return 0;
 
 	return lightIntensity * k * alphaCutOff;
@@ -172,7 +172,7 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLig
 		}
 		Ray shadowRay(point, dirNormalized);
 		shadowRay.t = dst;
-		if (scene.IsOccluded(shadowRay))
+		if (IsOccluded(shadowRay))
 			continue;
 		//https://www.physicsforums.com/threads/luminance-of-a-lambertian-sphere-formula.449703/
 		const float3 lightIntensity = cosTheta * lightData.color * lightData.colorMultiplier * (1.0f / (dst *
@@ -186,6 +186,19 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLig
 
 
 	return incomingLight * k;
+}
+
+bool Renderer::IsOccluded(Ray& ray) const
+{
+	bool hitSphere = false;
+	for (auto& sphere : spheres)
+	{
+		if (sphere.IsHit(ray))
+			hitSphere = true;
+	}
+	if (mainScene.IsOccluded(ray))
+		return true;
+	return false;
 }
 
 float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData)
@@ -272,9 +285,19 @@ void Renderer::MaterialSetUp()
 	}
 }
 
+void Renderer::AddSphere()
+{
+	spheres.push_back(Sphere(float3{0}, .5, static_cast<MaterialType::MatType>(Rand(MaterialType::EMISSIVE))));
+}
+
+void Renderer::RemoveLastSphere()
+{
+	spheres.pop_back();
+}
+
 void Renderer::ShapesSetUp()
 {
-	spheres.push_back(Sphere(float3{0}, .5, MaterialType::NON_METAL_WHITE));
+	AddSphere();
 }
 
 void Renderer::Init()
@@ -363,24 +386,26 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	{
 		return {0};
 	}
-	Ray sphereHit{ray.O, ray.D};
 
 	mainScene.FindNearest(ray);
-
-	for (auto& sphere : spheres)
-	{
-		sphere.Hit(sphereHit);
-	}
 	ray.rayNormal = ray.GetNormalVoxel();
-
-	if (ray.t > sphereHit.t)
+	//get the nearest t
 	{
-		ray.t = sphereHit.t;
-		ray.indexMaterial = sphereHit.indexMaterial;
-		ray.rayNormal = sphereHit.rayNormal;
-		ray.isInsideGlass = sphereHit.isInsideGlass;
-	}
+		Ray sphereHit{ray.O, ray.D};
 
+		for (auto& sphere : spheres)
+		{
+			sphere.Hit(sphereHit);
+		}
+
+		if (ray.t > sphereHit.t)
+		{
+			ray.t = sphereHit.t;
+			ray.indexMaterial = sphereHit.indexMaterial;
+			ray.rayNormal = sphereHit.rayNormal;
+			ray.isInsideGlass = sphereHit.isInsideGlass;
+		}
+	}
 	// Break early if no intersection
 	if (ray.indexMaterial == MaterialType::NONE)
 	{
@@ -415,7 +440,6 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::NON_METAL_BLUE:
 	case MaterialType::NON_METAL_GREEN:
 		{
-			//TODO add fresnel from Remi
 			float3 color{0};
 			if (RandomFloat() > SchlickReflectanceNonMetal(dot(-ray.D, ray.rayNormal)))
 			{
@@ -428,12 +452,12 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			}
 			else
 			{
-				float3 reflectedDirection = ray.D - 2 * ray.rayNormal * dot(ray.rayNormal, ray.D);
+				float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 				newRay = Ray{
 					OffsetRay(intersectionPoint, ray.rayNormal),
 					reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
 				};
-				color += Trace(newRay, depth - 1);
+				color = Trace(newRay, depth - 1);
 			}
 			return color;
 		}
@@ -497,9 +521,6 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
 		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
 	}
-
-	//fixes a warning
-	return {0};
 }
 
 //From raytracing in one weekend
@@ -515,7 +536,7 @@ float Renderer::SchlickReflectance(const float cosine, const float indexOfRefrac
 float Renderer::SchlickReflectanceNonMetal(const float cosine)
 {
 	//for diffuse
-	const auto r0 = 0.04f;
+	constexpr static float r0 = 0.04f;
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
@@ -569,7 +590,7 @@ void Renderer::Tick(const float deltaTime)
 			           if (triangleRay.t < 1e34f && triangleRay.t < primaryRay.t)
 				           pixel = float4{1.0f};*/
 			         // translate accumulator contents to rgb32 pixels
-			         float weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+			         const float weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
 			         //we accumulate
 			         float4 pixel = accumulator[x + pitch] * (1 - weight) + newPixel * weight;
 			         accumulator[x + pitch] = pixel;
@@ -831,21 +852,6 @@ void Renderer::HandleImguiCamera()
 	{
 		ResetAccumulator();
 	}
-	ImGui::SliderFloat3("Pos SPhere", spheres[0].center.cell, -5.0f, 5.0f);
-
-	if (ImGui::IsItemEdited())
-
-	{
-		ResetAccumulator();
-	}
-	ImGui::SliderFloat("Rad SPHere", &spheres[0].radius, 0.001f, 5.5f);
-
-	if (ImGui::IsItemEdited())
-
-	{
-		ResetAccumulator();
-	}
-
 
 	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 10.0f);
 
@@ -933,10 +939,13 @@ void Renderer::HandleImguiCamera()
 
 
 	ImGui::SliderInt("Material Types", &matTypeSphere, 0, MaterialType::EMISSIVE);
+	if (ImGui::IsItemEdited())
 
+	{
+		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere));
+		ResetAccumulator();
+	}
 	//from Sven 232380
-
-	// Read all the .vox files in the assets folder and store them in a vector
 
 
 	// Dropdown for selecting .vox file
@@ -1055,6 +1064,51 @@ void Renderer::HandleImguiMaterials()
 	}
 }
 
+void Renderer::HandleImguiEntities()
+{
+	if (!ImGui::CollapsingHeader("Spheres"))
+
+		return;
+
+	int sphereIndex = 0;
+
+	for (auto& sphere : spheres)
+	{
+		ImGui::SliderFloat3(("Sphere position:" + to_string(sphereIndex)).c_str(), sphere.center.cell, -5.0f, 5.0f);
+
+		if (ImGui::IsItemEdited())
+		{
+			ResetAccumulator();
+		}
+
+		ImGui::SliderFloat(("Sphere radius:" + to_string(sphereIndex)).c_str(), &sphere.radius, 0.001f, 5.5f);
+
+		if (ImGui::IsItemEdited())
+		{
+			ResetAccumulator();
+		}
+		ImGui::SliderInt(("Material Type" + to_string(sphereIndex)).c_str(), reinterpret_cast<int*>(&sphere.material),
+		                 0,
+		                 MaterialType::EMISSIVE);
+		if (ImGui::IsItemEdited())
+		{
+			ResetAccumulator();
+		}
+
+		sphereIndex++;
+	}
+	if (ImGui::Button("Create new Sphere"))
+	{
+		AddSphere();
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Delete last Sphere"))
+	{
+		RemoveLastSphere();
+		ResetAccumulator();
+	}
+}
+
 
 // -----------------------------------------------------------
 
@@ -1097,6 +1151,11 @@ void Renderer::UI()
 
 	{
 		HandleImguiMaterials();
+	}
+	if (ImGui::CollapsingHeader("Entities"))
+
+	{
+		HandleImguiEntities();
 	}
 
 	ImGui::BeginChild("General");

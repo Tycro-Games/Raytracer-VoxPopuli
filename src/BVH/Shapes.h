@@ -24,6 +24,8 @@ struct Sphere
 			return;
 
 		const float rayLength{-b - sqrt(discriminant)};
+		if (rayLength > r.t)
+			return;
 		// Calculate the outwards normal at the intersection point
 		const float3 intersectionPoint{r.O + rayLength * r.D};
 		const float3 outwardNormal{(intersectionPoint - center) / radius};
@@ -34,6 +36,25 @@ struct Sphere
 		r.isInsideGlass = !rayOutsideSphere;
 		r.t = rayLength;
 		r.indexMaterial = material;
+	}
+
+	bool IsHit(const Ray& r) const
+	{
+		const float3 toRay = r.O - center;
+		const float b{dot(toRay, r.D)};
+		const float c{sqrLength(toRay) - (radius * radius)};
+		const float discriminant = b * b - c;
+		if (c > 0.0f && b > 0.0f)
+		{
+			return false;
+		}
+		if (discriminant < 0)
+			return false;
+
+		const float rayLength{-b - sqrt(discriminant)};
+		if (rayLength > r.t)
+			return false;
+		return true;
 	}
 
 	float3 center;

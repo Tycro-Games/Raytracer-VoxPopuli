@@ -15,11 +15,14 @@ namespace Tmpl8
 		void InitMultithreading();
 		void SetUpLights();
 		float3 PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData& lightData);
-		float3 SpotLightEvaluate(Ray& ray, Scene& scene, const SpotLightData& lightData);
+		float3 SpotLightEvaluate(const Ray& ray, const Scene& scene, const SpotLightData& lightData);
 		float3 AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const;
+		bool IsOccluded(Ray& ray) const;
 		static float3 DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData);
 		void ResetAccumulator();
 		void MaterialSetUp();
+		void AddSphere();
+		void RemoveLastSphere();
 		void ShapesSetUp();
 		// game flow methods
 		void Init() override;
@@ -39,6 +42,7 @@ namespace Tmpl8
 		void HandleImguiCamera();
 		void MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material);
 		void HandleImguiMaterials();
+		void HandleImguiEntities();
 		void UI() override;
 		void Shutdown() override;
 		/* Input
@@ -95,7 +99,7 @@ namespace Tmpl8
 		//std::vector<shared_ptr<DiffuseMaterial>> reflectiveMaterials;
 		//lights
 		PointLight pointLights[2];
-		SphereAreaLight areaLights[1];
+		SphereAreaLight areaLights[2];
 		SpotLight spotLights[2];
 		SkyDome skyDome;
 		DirectionalLight dirLight;

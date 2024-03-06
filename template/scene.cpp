@@ -57,7 +57,7 @@ float3 Ray::GetAlbedo(const Scene& scene) const
 	return scene.materials[indexMaterial]->albedo;
 }
 
-float3 Ray::GetEmissive(const Scene& scene) const
+float Ray::GetEmissive(const Scene& scene) const
 {
 	return scene.materials[indexMaterial]->emissiveStrength;
 }
@@ -175,7 +175,7 @@ Scene::Scene()
 	ResetGrid();
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	//GenerateSomeNoise();
+	GenerateSomeNoise();
 }
 
 // a helper function to load a magica voxel scene given a filename from https://github.com/jpaver/opengametools/blob/master/demo/demo_vox.cpp
@@ -284,7 +284,7 @@ void Scene::CreateEmmisiveSphere(MaterialType::MatType mat)
 
 void Scene::Set(const uint x, const uint y, const uint z, const MaterialType::MatType v)
 {
-	grid[x + y * GRIDSIZE + z * GRIDSIZE2] = v;
+	grid[GetVoxel(x, y, z)] = v;
 }
 
 bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
@@ -318,7 +318,7 @@ void Scene::FindNearest(Ray& ray) const
 	// start stepping
 	while (1)
 	{
-		const MaterialType::MatType cell = grid[s.X + s.Y * GRIDSIZE + s.Z * GRIDSIZE2];
+		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
 		if (cell != MaterialType::NONE)
 		{
 			ray.t = s.t;
@@ -372,7 +372,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 	// start stepping
 	while (1)
 	{
-		const MaterialType::MatType cell = grid[s.X + s.Y * GRIDSIZE + s.Z * GRIDSIZE2];
+		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
 		if (cell != matType)
 		{
 			ray.t = s.t;
@@ -428,7 +428,7 @@ bool Scene::IsOccluded(const Ray& ray) const
 	// start stepping
 	while (s.t < ray.t)
 	{
-		const auto cell = grid[s.X + s.Y * GRIDSIZE + s.Z * GRIDSIZE2];
+		const auto cell = grid[GetVoxel(s.X, s.Y, s.Z)];
 		if (cell != MaterialType::NONE) /* we hit a solid voxel */ return s.t < ray.t;
 		if (s.tmax.x < s.tmax.y)
 		{

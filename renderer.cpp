@@ -318,10 +318,13 @@ void Renderer::ShapesSetUp()
 
 void Renderer::Init()
 {
+	//sizeof(Ray);
 	InitSeed(static_cast<uint>(time(nullptr)));
 
-	// create fp32 rgb pixel buffer to render to
-	accumulator = (float4*)MALLOC64(SCRWIDTH * SCRHEIGHT * 16);
+	//multiply by 16 because float4 consists of 16 bytes
+	accumulator = static_cast<float4*>(MALLOC64(SCRWIDTH * SCRHEIGHT * 16));
+
+
 	memset(accumulator, 0, SCRWIDTH * SCRHEIGHT * 16);
 	// try to load a camera
 	FILE* f = fopen("camera.bin", "rb");
@@ -359,6 +362,7 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
 	const auto p = static_cast<size_t>(Rand(POINT_LIGHTS));
 	const auto s = static_cast<size_t>(Rand(SPOT_LIGHTS));
 	const auto a = static_cast<size_t>(Rand(AREA_LIGHTS));
+	//choose only one random light
 	switch (lightType)
 	{
 	case 0:
@@ -376,6 +380,7 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
 		break;
 	default: break;
 	}
+	//multiply by the probability of choosing a light
 	incLight *= LIGHT_COUNT;
 }
 
@@ -402,7 +407,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	{
 		return {0};
 	}
-
+#pragma region FindNearest
 	mainScene.FindNearest(ray);
 	ray.rayNormal = ray.GetNormalVoxel();
 	//get the nearest t
@@ -426,6 +431,10 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			ray.isInsideGlass = sphereHit.isInsideGlass;
 		}
 	}
+#pragma endregion
+
+	//evaluate materials and trace again for reflections and refraction
+
 	// Break early if no intersection
 	if (ray.indexMaterial == MaterialType::NONE)
 	{
@@ -579,6 +588,48 @@ void Renderer::Tick(const float deltaTime)
 	const Timer t;
 
 	//c++ 17 onwards parallel for loop
+#ifdef PROFILE
+	for (uint32_t y = 0; y < SCRHEIGHT; y++)
+	{
+		//do only once
+		const uint32_t pitch = y * SCRWIDTH;
+		for (uint32_t x = 0; x < SCRWIDTH; x++)
+		{
+			//Ray triangleRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
+			float3 totalLight{0};
+
+			for (int i = 0; i < maxRayPerPixel; i++)
+			{
+				//Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
+				//AA
+				const float randomXDir = RandomFloat() - .5f;
+				const float randomYDir = RandomFloat() - .5f;
+
+				Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+				                                      static_cast<float>(y) + randomYDir);
+				/* primaryRay.O.x += randomXOri;
+				 primaryRay.O.y += randomYOri;*/
+
+				totalLight += Trace(primaryRay, maxBounces);
+			}
+
+			//  const float4 newPixel = float4{totalLight / static_cast<float>(maxRayPerPixel), 0.0f};
+			const float4 newPixel = totalLight;
+			/*  bvh.IntersectBVH(triangleRay, 0);
+			  if (triangleRay.t < 1e34f && triangleRay.t < primaryRay.t)
+				  pixel = float4{1.0f};*/
+			// translate accumulator contents to rgb32 pixels
+			const float weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+			//we accumulate
+			float4 pixel = accumulator[x + pitch] * (1 - weight) + newPixel * weight;
+			accumulator[x + pitch] = pixel;
+
+			pixel = ApplyReinhardJodie(pixel);
+			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+		}
+	}
+
+#else
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
 	         [this](const uint32_t y)
 	         {
@@ -619,6 +670,7 @@ void Renderer::Tick(const float deltaTime)
 			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		         }
 	         });
+#endif
 
 
 	// performance report - running average - ms, MRays/s
@@ -922,10 +974,9 @@ void Renderer::HandleImguiCamera()
 	}
 
 
-	if (ImGui::IsItemEdited())
-		ImGui::Text("Camera look ahead %.2f,  %.2f,  %.2f:", camera.ahead.x, camera.ahead.y,
+	ImGui::Text("Camera look ahead %.2f,  %.2f,  %.2f:", camera.ahead.x, camera.ahead.y,
 
-		            camera.ahead.z);
+	            camera.ahead.z);
 
 	if (ImGui::IsItemEdited())
 
@@ -1027,6 +1078,14 @@ void Renderer::MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>:
 	ImGui::SliderFloat(("IOR :" + to_string(index)).c_str(), &material->IOR, 1.0f,
 
 	                   2.4f);
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+	ImGui::SliderFloat(("Emmisive strength :" + to_string(index)).c_str(), &material->emissiveStrength, 0.0f,
+
+	                   100.0f);
 	if (ImGui::IsItemEdited())
 
 	{

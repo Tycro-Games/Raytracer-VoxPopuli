@@ -2,6 +2,7 @@
 
 // high level settings
 // #define TWOLEVEL
+//#define USE_MORTON 
 constexpr auto WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
 // #define USE_SIMD
 // #define USE_FMA3
@@ -24,6 +25,11 @@ constexpr auto WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x51
 #endif
 #define GRIDSIZE2	(GRIDSIZE*GRIDSIZE)
 #define GRIDSIZE3	(GRIDSIZE*GRIDSIZE*GRIDSIZE)
+/* 3D coordinate to morton code. */
+constexpr uint64_t BMI_3D_X_MASK = 0x9249249249249249;
+constexpr uint64_t BMI_3D_Y_MASK = 0x2492492492492492;
+constexpr uint64_t BMI_3D_Z_MASK = 0x4924924924924924;
+constexpr uint64_t BMI_3D_MASKS[3] = {BMI_3D_X_MASK, BMI_3D_Y_MASK, BMI_3D_Z_MASK};
 
 namespace MaterialType
 {
@@ -65,7 +71,7 @@ namespace Tmpl8
 		float3 GetNormalVoxel() const;
 		float3 UintToFloat3(uint col) const;
 		float3 GetAlbedo(const Scene& scene) const;
-		float3 GetEmissive(const Scene& scene) const;
+		float GetEmissive(const Scene& scene) const;
 		float GetRoughness(const Scene& scene) const;
 		float GetRefractivity(const Scene& scene) const;
 		//E reflected = E incoming multiplied by C material
@@ -73,18 +79,19 @@ namespace Tmpl8
 		float3 GetAbsorption(const float3& I) const; // TODO: implement
 		float3 Evaluate(const float3& I) const; // TODO: implement
 		// ray data
-		float3 O; // ray origin
+		float3 O; // ray origin //12 bytes
 		float3 rD; // reciprocal ray direction
 		float3 D = float3(0); // ray direction
+		float3 Dsign = float3(1); // 48 bytes
+		float3 rayNormal{0}; //60 bytes
+
 		float t = 1e34f; // ray length
-		float3 Dsign = float3(1); // inverted ray direction signs, -1 or 1
 		bool isInsideGlass = false;
 		MaterialType::MatType indexMaterial = MaterialType::NONE; //replace grid color with material index
 
 
 		int8_t depth = 5;
-		float3 rayNormal{0};
-		// 32-bit ARGB color of a voxelhit object index; 0 = NONE
+
 	private:
 		// min3 is used in normal reconstruction.
 		__inline static float3 min3(const float3& a, const float3& b)
@@ -124,7 +131,23 @@ namespace Tmpl8
 		Scene();
 		void FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
+		// morton order from Coppen, Max (230184)
 
+
+		inline uint64_t MortonEncode(const uint32_t x, const uint32_t y, const uint32_t z) const
+		{
+			return _pdep_u64((uint64_t)x, BMI_3D_X_MASK) | _pdep_u64((uint64_t)y, BMI_3D_Y_MASK) |
+				_pdep_u64((uint64_t)z, BMI_3D_Z_MASK);
+		}
+
+		inline uint64_t GetVoxel(const uint32_t x, const uint32_t y, const uint32_t z) const
+		{
+#ifdef USE_MORTON
+			return MortonEncode(x, y, z);
+# else
+			return x + y * GRIDSIZE + z * GRIDSIZE2;
+#endif
+		}
 
 		bool IsOccluded(const Ray& ray) const;
 		void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);

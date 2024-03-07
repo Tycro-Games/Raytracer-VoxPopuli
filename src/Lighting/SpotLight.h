@@ -20,7 +20,6 @@ struct SpotLightData
 class SpotLight
 {
 public:
-	float3 Evaluate(Ray& ray, Scene& scene);
 	SpotLightData data{{0, 0, 0}, {1, 0, 0}, {0}, CosDegrees(45.0f)};
 
 private:

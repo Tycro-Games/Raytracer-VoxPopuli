@@ -22,7 +22,7 @@ namespace Tmpl8
 			ahead = normalize(camTarget - camPos);
 		}
 
-		Ray GetPrimaryRay(const float x, const float y)
+		Ray GetPrimaryRay(const float x, const float y) const
 		{
 			//conceptually used https://youtu.be/Qz0KTGYJtUk?si=9en1nLsgxqQyoGW2&t=2113
 			const float u = x * (1.0f / SCRWIDTH);

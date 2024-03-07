@@ -52,22 +52,22 @@ float3 Ray::UintToFloat3(uint col) const
 }
 
 
-float3 Ray::GetAlbedo(const Scene& scene) const
+float3 Ray::GetAlbedo(const Renderer& scene) const
 {
 	return scene.materials[indexMaterial]->albedo;
 }
 
-float Ray::GetEmissive(const Scene& scene) const
+float Ray::GetEmissive(const Renderer& scene) const
 {
 	return scene.materials[indexMaterial]->emissiveStrength;
 }
 
-float Ray::GetRefractivity(const Scene& scene) const
+float Ray::GetRefractivity(const Renderer& scene) const
 {
 	return scene.materials[indexMaterial]->IOR;
 }
 
-float Ray::GetRoughness(const Scene& scene) const
+float Ray::GetRoughness(const Renderer& scene) const
 {
 	return scene.materials[indexMaterial]->roughness;
 }
@@ -179,7 +179,7 @@ Scene::Scene()
 }
 
 // a helper function to load a magica voxel scene given a filename from https://github.com/jpaver/opengametools/blob/master/demo/demo_vox.cpp
-void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
+void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_read_flags)
 {
 	ResetGrid();
 	// open the file
@@ -240,10 +240,10 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 				}
 
 				materialIndex = static_cast<MaterialType::MatType>(voxelColorIndex);
-				materials[materialIndex]->albedo = (float3(static_cast<float>(col.r) / 255.0f,
-				                                           static_cast<float>(col.g) / 255.0f,
-				                                           static_cast<float>(col.b) / 255.0f));
-				materials[materialIndex]->roughness = 1.0f;
+				renderer.materials[materialIndex]->albedo = (float3(static_cast<float>(col.r) / 255.0f,
+				                                                    static_cast<float>(col.g) / 255.0f,
+				                                                    static_cast<float>(col.b) / 255.0f));
+				renderer.materials[materialIndex]->roughness = 1.0f;
 				// Set the color at position (x, y, z)
 				Set(scaledX, scaledY, scaledZ, materialIndex);
 			}
@@ -254,7 +254,7 @@ void Scene::LoadModel(const char* filename, uint32_t scene_read_flags)
 	delete[] buffer;
 }
 
-void Scene::CreateEmmisiveSphere(MaterialType::MatType mat)
+void Scene::CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere)
 {
 	//ResetGrid();
 	//based on Lynn's implementation
@@ -368,7 +368,10 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 {
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
-	if (!Setup3DDDA(ray, s)) return false;
+	if (!Setup3DDDA(ray, s))
+	{
+		return false;
+	}
 	// start stepping
 	while (1)
 	{
@@ -376,6 +379,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 		if (cell != matType)
 		{
 			ray.t = s.t;
+			ray.rayNormal = ray.GetNormalVoxel();
 			ray.indexMaterial = cell;
 			return true;
 		}
@@ -410,6 +414,12 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 			}
 		}
 	}
+	ray.t = s.t;
+	ray.O = ray.O + ray.D * s.t;
+	ray.t = 0;
+	FindNearest(ray);
+	//ray.rayNormal = ray.GetNormalVoxel();
+
 	// TODO:
 	// - A nested grid will let rays skip empty space much faster.
 	// - Coherent rays can traverse the grid faster together.

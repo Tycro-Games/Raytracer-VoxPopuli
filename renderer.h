@@ -14,11 +14,12 @@ namespace Tmpl8
 	public:
 		void InitMultithreading();
 		void SetUpLights();
-		float3 PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData& lightData);
-		float3 SpotLightEvaluate(const Ray& ray, const Scene& scene, const SpotLightData& lightData);
-		float3 AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const;
+		float3 PointLightEvaluate(Ray& ray, const PointLightData& lightData);
+		float3 SpotLightEvaluate(const Ray& ray, const SpotLightData& lightData) const;
+		float3 AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightData) const;
 		bool IsOccluded(Ray& ray) const;
-		static float3 DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData);
+		bool IsOccludedSpheres(Ray& ray) const;
+		float3 DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& lightData);
 		void ResetAccumulator();
 		void MaterialSetUp();
 		void AddSphere();
@@ -31,6 +32,7 @@ namespace Tmpl8
 		void Illumination(Ray& ray, float3& incLight);
 		static float3 Reflect(float3 direction, float3 normal);
 		static float3 Refract(float3 direction, float3 normal, float IORRatio);
+		void FindNearest(Ray& ray);
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
 		float SchlickReflectanceNonMetal(const float cosine);
@@ -42,7 +44,7 @@ namespace Tmpl8
 		void HandleImguiSpotLights();
 		void HandleImguiDirectionalLight();
 		void HandleImguiCamera();
-		void MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material);
+		void MaterialEdit(int index, vector<shared_ptr<Material>>::value_type& material);
 		void HandleImguiMaterials();
 		void HandleImguiSpheres();
 		void HandleImguiTriangles();
@@ -93,11 +95,15 @@ namespace Tmpl8
 		float frqGenerationPerlinNoise = .03f;
 		float HDRLightContribution = 1.5f;
 		float antiAliasingStrength = 1.0f;
+		float radiusEmissiveSphere = 1.0f;
+
 		//materials
-		std::vector<shared_ptr<ReflectivityMaterial>> metalMaterials;
-		std::vector<shared_ptr<ReflectivityMaterial>> nonMetalMaterials;
-		std::vector<shared_ptr<ReflectivityMaterial>> dielectricsMaterials;
-		std::vector<shared_ptr<ReflectivityMaterial>> emissiveMaterials;
+		std::vector<shared_ptr<Material>> metalMaterials;
+		std::vector<shared_ptr<Material>> nonMetalMaterials;
+		std::vector<shared_ptr<Material>> dielectricsMaterials;
+		std::vector<shared_ptr<Material>> emissiveMaterials;
+		//all materials
+		std::vector<shared_ptr<Material>> materials;
 
 		//std::vector<shared_ptr<DiffuseMaterial>> reflectiveMaterials;
 		//lights

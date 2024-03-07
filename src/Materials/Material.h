@@ -4,19 +4,13 @@ class Material
 {
 public:
 	virtual ~Material() = default;
-
+	explicit Material(float3 _albedo, float _roughness = 1.0f);
 	float3 albedo{1};
 	float roughness{0};
 	float emissiveStrength{0};
 	float IOR{1.5f};
 };
 
-
-class ReflectivityMaterial : public Material
-{
-public:
-	ReflectivityMaterial(float3 _albedo, float _roughness = 1.0f);
-};
 
 //class Reflective : public Material
 //{

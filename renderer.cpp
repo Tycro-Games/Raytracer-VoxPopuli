@@ -81,7 +81,7 @@ void Renderer::SetUpLights()
 {
 }
 
-float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData& lightData)
+float3 Renderer::PointLightEvaluate(Ray& ray, const PointLightData& lightData)
 {
 	//Getting the intersection point
 	const float3 intersectionPoint = ray.IntersectionPoint();
@@ -100,7 +100,7 @@ float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color * (1.0f / (dst * dst));
 	//materi
 	const float3 originRay = OffsetRay(intersectionPoint, normal);
-	const float3 k = ray.GetAlbedo(scene);
+	const float3 k = ray.GetAlbedo(*this);
 
 	Ray shadowRay(originRay, dirNormalized);
 	// we do not shoot the ray behind the light source
@@ -112,7 +112,7 @@ float3 Renderer::PointLightEvaluate(Ray& ray, Scene& scene, const PointLightData
 	return lightIntensity * k;
 }
 
-float3 Renderer::SpotLightEvaluate(const Ray& ray, const Scene& scene, const SpotLightData& lightData)
+float3 Renderer::SpotLightEvaluate(const Ray& ray, const SpotLightData& lightData) const
 {
 	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 dir = lightData.position - intersectionPoint;
@@ -129,7 +129,7 @@ float3 Renderer::SpotLightEvaluate(const Ray& ray, const Scene& scene, const Spo
 
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color / (dst * dst);
 	//material evaluation
-	const float3 k = ray.GetAlbedo(scene);
+	const float3 k = ray.GetAlbedo(*this);
 
 
 	Ray shadowRay(OffsetRay(intersectionPoint, normal), dirNormalized);
@@ -140,14 +140,14 @@ float3 Renderer::SpotLightEvaluate(const Ray& ray, const Scene& scene, const Spo
 	return lightIntensity * k * alphaCutOff;
 }
 
-float3 Renderer::AreaLightEvaluation(Ray& ray, Scene& scene, const SphereAreaLightData& lightData) const
+float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightData) const
 {
 	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 normal = ray.rayNormal;
 	const float3 center = lightData.position;
 	const float radius = lightData.radius;
 	float3 incomingLight{0};
-	const float3 k = ray.GetAlbedo(scene);
+	const float3 k = ray.GetAlbedo(*this);
 	float3 point = OffsetRay(intersectionPoint, normal);
 
 	//the same as before, we get all the needed variables
@@ -207,7 +207,26 @@ bool Renderer::IsOccluded(Ray& ray) const
 	return false;
 }
 
-float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, const DirectionalLightData& lightData)
+bool Renderer::IsOccludedSpheres(Ray& ray) const
+{
+	//if (mainScene.IsOccluded(ray))
+	//	return true;
+
+	for (auto& sphere : spheres)
+	{
+		if (sphere.IsHit(ray))
+			return true;
+	}
+	//for (auto& tri : triangles)
+	//{
+	//	if (tri.IsHit(ray))
+	//		return true;
+	//}
+
+	return false;
+}
+
+float3 Renderer::DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& lightData)
 {
 	const float3 intersectionPoint = ray.IntersectionPoint();
 	const float3 dir = -lightData.direction;
@@ -221,12 +240,12 @@ float3 Renderer::DirectionalLightEvaluate(Ray& ray, Scene& scene, const Directio
 		return 0;
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color;
 	//material evaluation
-	const float3 k = ray.GetAlbedo(scene);
+	const float3 k = ray.GetAlbedo(*this);
 
 	const Ray shadowRay(OffsetRay(intersectionPoint, normal), (dir));
 
 
-	if (scene.IsOccluded(shadowRay))
+	if (mainScene.IsOccluded(shadowRay))
 		return 0;
 
 	return lightIntensity * k;
@@ -242,21 +261,21 @@ void Renderer::ResetAccumulator()
 
 void Renderer::MaterialSetUp()
 {
-	const auto materialDifWhite = make_shared<ReflectivityMaterial>(float3(1, 1, 1));
-	const auto materialDifRed = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
-	const auto materialDifBlue = make_shared<ReflectivityMaterial>(float3(0, 0, 1));
-	const auto materialDifGreen = make_shared<ReflectivityMaterial>(float3(0, 1, 0), 0.0f);
-	const auto partialMetal = make_shared<ReflectivityMaterial>(float3(1, 1, 1), 0.75f);
+	const auto materialDifWhite = make_shared<Material>(float3(1, 1, 1));
+	const auto materialDifRed = make_shared<Material>(float3(1, 0, 0));
+	const auto materialDifBlue = make_shared<Material>(float3(0, 0, 1));
+	const auto materialDifGreen = make_shared<Material>(float3(0, 1, 0), 0.0f);
+	const auto partialMetal = make_shared<Material>(float3(1, 1, 1), 0.75f);
 
 	//Mirror
-	const auto materialDifReflectivity = make_shared<ReflectivityMaterial>(float3(1));
-	const auto materialDifRefMid = make_shared<ReflectivityMaterial>(float3(0, 1, 1), 0.5f);
-	const auto materialDifRefLow = make_shared<ReflectivityMaterial>(float3(1, 1, 0), 0.1f);
+	const auto materialDifReflectivity = make_shared<Material>(float3(1));
+	const auto materialDifRefMid = make_shared<Material>(float3(0, 1, 1), 0.5f);
+	const auto materialDifRefLow = make_shared<Material>(float3(1, 1, 0), 0.1f);
 	//partial mirror
-	const auto glass = make_shared<ReflectivityMaterial>(float3(1, 1, 1));
+	const auto glass = make_shared<Material>(float3(1, 1, 1));
 	glass->IOR = 1.45f;
-	const auto emissive = make_shared<ReflectivityMaterial>(float3(1, 0, 0));
-	emissive->emissiveStrength = 1.0f;
+	const auto emissive = make_shared<Material>(float3(1, 0, 0));
+	emissive->emissiveStrength = 5.0f;
 
 	nonMetalMaterials.push_back(materialDifWhite);
 	nonMetalMaterials.push_back(materialDifRed);
@@ -272,21 +291,21 @@ void Renderer::MaterialSetUp()
 	emissiveMaterials.push_back(emissive);
 
 	for (auto& mat : nonMetalMaterials)
-		mainScene.materials.push_back(mat);
+		materials.push_back(mat);
 	for (auto& mat : metalMaterials)
-		mainScene.materials.push_back(mat);
+		materials.push_back(mat);
 	for (auto& mat : dielectricsMaterials)
-		mainScene.materials.push_back(mat);
+		materials.push_back(mat);
 	for (auto& mat : emissiveMaterials)
-		mainScene.materials.push_back(mat);
+		materials.push_back(mat);
 
-	if (mainScene.materials.size() < MaterialType::NONE)
+	if (materials.size() < MaterialType::NONE)
 	{
-		size_t i = mainScene.materials.size();
-		mainScene.materials.resize(MaterialType::NONE);
+		size_t i = materials.size();
+		materials.resize(MaterialType::NONE);
 		for (; i < MaterialType::NONE; ++i)
 		{
-			mainScene.materials[i] = std::make_shared<ReflectivityMaterial>(float3(1, 1, 1), 1.f);
+			materials[i] = std::make_shared<Material>(float3(1, 1, 1), 1.f);
 		}
 	}
 }
@@ -367,16 +386,16 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
 	{
 	case 0:
 		//every method evaluates to the light
-		incLight = PointLightEvaluate(ray, mainScene, pointLights[p].data);
+		incLight = PointLightEvaluate(ray, pointLights[p].data);
 		break;
 	case 1:
-		incLight = AreaLightEvaluation(ray, mainScene, areaLights[a].data);
+		incLight = AreaLightEvaluation(ray, areaLights[a].data);
 		break;
 	case 2:
-		incLight = SpotLightEvaluate(ray, mainScene, spotLights[s].data);
+		incLight = SpotLightEvaluate(ray, spotLights[s].data);
 		break;
 	case 3:
-		incLight = DirectionalLightEvaluate(ray, mainScene, dirLight.data);
+		incLight = DirectionalLightEvaluate(ray, dirLight.data);
 		break;
 	default: break;
 	}
@@ -398,16 +417,8 @@ float3 Renderer::Refract(const float3 direction, const float3 normal, const floa
 	return rPer + rPar;
 }
 
-// -----------------------------------------------------------
-// Evaluate light transport
-// -----------------------------------------------------------
-float3 Renderer::Trace(Ray& ray, int depth)
+void Renderer::FindNearest(Ray& ray)
 {
-	if (depth < 0)
-	{
-		return {0};
-	}
-#pragma region FindNearest
 	mainScene.FindNearest(ray);
 	ray.rayNormal = ray.GetNormalVoxel();
 	//get the nearest t
@@ -431,6 +442,21 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			ray.isInsideGlass = sphereHit.isInsideGlass;
 		}
 	}
+}
+
+// -----------------------------------------------------------
+// Evaluate light transport
+// -----------------------------------------------------------
+float3 Renderer::Trace(Ray& ray, int depth)
+{
+	if (depth < 0)
+	{
+		return {0};
+	}
+	//Find nearest BVH
+
+#pragma region FindNearest
+	FindNearest(ray);
 #pragma endregion
 
 	//evaluate materials and trace again for reflections and refraction
@@ -456,9 +482,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 			newRay = Ray{
 				OffsetRay(intersectionPoint, ray.rayNormal),
-				reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
+				reflectedDirection + ray.GetRoughness(*this) * RandomSphereSample()
 			};
-			return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
+			return Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
 		}
 
 	//non-metal
@@ -477,14 +503,14 @@ float3 Renderer::Trace(Ray& ray, int depth)
 				Illumination(ray, incLight);
 				newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
 				color += incLight;
-				color += Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene);
+				color += Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
 			}
 			else
 			{
 				float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 				newRay = Ray{
 					OffsetRay(intersectionPoint, ray.rayNormal),
-					reflectedDirection + ray.GetRoughness(mainScene) * RandomSphereSample()
+					reflectedDirection + ray.GetRoughness(*this) * RandomSphereSample()
 				};
 				color = Trace(newRay, depth - 1);
 			}
@@ -496,22 +522,20 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 color{1};
 			//code for glass
 			bool isInGlass = ray.isInsideGlass;
-			float IORMaterial = ray.GetRefractivity(mainScene); //1.45
+			float IORMaterial = ray.GetRefractivity(*this); //1.45
 			//get the IOR
 			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
 			bool isInsideVolume = true;
 			//we need to get to the next voxel
 			if (isInGlass)
 			{
-				color = ray.GetAlbedo(mainScene);
-
+				color = ray.GetAlbedo(*this);
+				//outside bounds if false, no handling of other entities
 				isInsideVolume = mainScene.FindMaterialExit(ray, MaterialType::GLASS);
 			}
-			//outside bounds
-			if (!isInsideVolume)
-				return skyDome.SampleSky(ray);
 
-			float cosTheta = min(dot(-ray.D, ray.GetNormalVoxel()), 1.0f);
+
+			float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
 			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 
 			bool cannotRefract = refractionRatio * sinTheta > 1.0f;
@@ -533,12 +557,16 @@ float3 Renderer::Trace(Ray& ray, int depth)
 				isInGlass = !isInGlass;
 				resultingNormal = -ray.rayNormal;
 			}
+
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
+
+			//if (!isInsideVolume)
+			//	return skyDome.SampleSky(newRay);
 			return Trace(newRay, depth - 1) * color;
 		}
 	case MaterialType::EMISSIVE:
-		return ray.GetAlbedo(mainScene) * ray.GetEmissive(mainScene);
+		return ray.GetAlbedo(*this) * ray.GetEmissive(*this);
 
 	case MaterialType::NONE:
 		return skyDome.SampleSky(ray);
@@ -548,7 +576,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		float3 randomDirection = DiffuseReflection(ray.rayNormal);
 		Illumination(ray, incLight);
 		newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
-		return Trace(newRay, depth - 1) * ray.GetAlbedo(mainScene) + incLight;
+		return Trace(newRay, depth - 1) * ray.GetAlbedo(*this) + incLight;
 	}
 }
 
@@ -644,8 +672,8 @@ void Renderer::Tick(const float deltaTime)
 			         {
 				         //Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
 				         //AA
-				         const float randomXDir = RandomFloat() - .5f;
-				         const float randomYDir = RandomFloat() - .5f;
+				         const float randomXDir = RandomFloat() * antiAliasingStrength;
+				         const float randomYDir = RandomFloat() * antiAliasingStrength;
 
 				         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
 				                                               static_cast<float>(y) + randomYDir);
@@ -994,16 +1022,16 @@ void Renderer::HandleImguiCamera()
 	if (ImGui::Button("Generate new Sphere emissive"))
 
 	{
-		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere));
+		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
 
 		ResetAccumulator();
 	}
-	ImGui::SliderFloat("radius sphere", &mainScene.radiusEmissiveSphere, 0.0f, WORLDSIZE);
+	ImGui::SliderFloat("radius sphere", &radiusEmissiveSphere, 0.0f, WORLDSIZE);
 
 	if (ImGui::IsItemEdited())
 
 	{
-		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere));
+		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
 		ResetAccumulator();
 	}
 	std::vector<const char*> cStr; // ImGui needs const char* array
@@ -1013,7 +1041,7 @@ void Renderer::HandleImguiCamera()
 	if (ImGui::IsItemEdited())
 
 	{
-		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere));
+		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
 		ResetAccumulator();
 	}
 	//from Sven 232380
@@ -1051,14 +1079,14 @@ void Renderer::HandleImguiCamera()
 
 		const std::string path = "assets/" + voxFiles[selectedItem];
 
-		mainScene.LoadModel(path.c_str());
+		mainScene.LoadModel(*this, path.c_str());
 
 		ResetAccumulator();
 	}
 }
 
 
-void Renderer::MaterialEdit(int index, vector<shared_ptr<ReflectivityMaterial>>::value_type& material)
+void Renderer::MaterialEdit(int index, vector<shared_ptr<Material>>::value_type& material)
 {
 	ImGui::ColorEdit3(("albedo:" + to_string(index)).c_str(), material->albedo.cell);
 
@@ -1247,7 +1275,7 @@ void Renderer::UI()
 
 	/*Ray r = camera.GetPrimaryRay((float)mousePos.x, (float)mousePos.y);
 
-	mainScene.FindNearest(r);
+	*this.FindNearest(r);
 
 	ImGui::Text("voxel: %i", r.voxel);*/
 

@@ -9,7 +9,6 @@ struct Sphere
 
 	Sphere();
 	// For ray/sphere intersection: https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code
-
 	void Hit(Ray& r)
 	{
 		const float3 toRay = r.O - center;
@@ -26,6 +25,10 @@ struct Sphere
 		const float rayLength{-b - sqrt(discriminant)};
 		if (rayLength > r.t)
 			return;
+		if (rayLength < 0)
+		{
+			return;
+		}
 		// Calculate the outwards normal at the intersection point
 		const float3 intersectionPoint{r.O + rayLength * r.D};
 		const float3 outwardNormal{(intersectionPoint - center) / radius};
@@ -52,6 +55,8 @@ struct Sphere
 			return false;
 
 		const float rayLength{-b - sqrt(discriminant)};
+		if (rayLength < 0)
+			return false;
 		if (rayLength > r.t)
 			return false;
 		return true;

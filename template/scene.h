@@ -1,5 +1,10 @@
 #pragma once
 
+namespace Tmpl8
+{
+	class Renderer;
+}
+
 // high level settings
 // #define TWOLEVEL
 //#define USE_MORTON 
@@ -70,10 +75,10 @@ namespace Tmpl8
 
 		float3 GetNormalVoxel() const;
 		float3 UintToFloat3(uint col) const;
-		float3 GetAlbedo(const Scene& scene) const;
-		float GetEmissive(const Scene& scene) const;
-		float GetRoughness(const Scene& scene) const;
-		float GetRefractivity(const Scene& scene) const;
+		float3 GetAlbedo(const Renderer& scene) const;
+		float GetEmissive(const Renderer& scene) const;
+		float GetRoughness(const Renderer& scene) const;
+		float GetRefractivity(const Renderer& scene) const;
 		//E reflected = E incoming multiplied by C material
 
 		float3 GetAbsorption(const float3& I) const; // TODO: implement
@@ -125,10 +130,10 @@ namespace Tmpl8
 		};
 
 		void GenerateSomeNoise(float frequency);
-		void LoadModel(const char* filename, uint32_t scene_read_flags = 0);
-		void CreateEmmisiveSphere(MaterialType::MatType mat);
+		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid();
 		Scene();
+		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
 		// morton order from Coppen, Max (230184)
@@ -156,8 +161,6 @@ namespace Tmpl8
 
 		float3 scaleModel{1.0f};
 		Cube cube;
-		std::vector<shared_ptr<Material>> materials;
-		float radiusEmissiveSphere = 1.0f;
 
 	private:
 		bool Setup3DDDA(const Ray& ray, DDAState& state) const;

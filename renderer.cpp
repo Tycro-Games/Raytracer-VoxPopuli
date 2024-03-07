@@ -525,13 +525,12 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float IORMaterial = ray.GetRefractivity(*this); //1.45
 			//get the IOR
 			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
-			bool isInsideVolume = true;
 			//we need to get to the next voxel
 			if (isInGlass)
 			{
 				color = ray.GetAlbedo(*this);
 				//outside bounds if false, no handling of other entities
-				isInsideVolume = mainScene.FindMaterialExit(ray, MaterialType::GLASS);
+				mainScene.FindMaterialExit(ray, MaterialType::GLASS);
 			}
 
 

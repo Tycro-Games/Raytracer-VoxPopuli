@@ -414,10 +414,8 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 			}
 		}
 	}
-	ray.t = s.t;
 	ray.O = ray.O + ray.D * s.t;
 	ray.t = 0;
-	FindNearest(ray);
 	//ray.rayNormal = ray.GetNormalVoxel();
 
 	// TODO:

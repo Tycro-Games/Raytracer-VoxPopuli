@@ -14,15 +14,15 @@ SkyDome::SkyDome()
 	}
 }
 
-float3 SkyDome::SampleSky(Ray& ray) const
+float3 SkyDome::SampleSky(const float3& direction) const
 {
 	// Sample sky
-	const float uFloat = static_cast<float>(skyWidth) * atan2f(ray.D.z, ray.D.x) * INV2PI - 0.5f;
-	const float vFloat = static_cast<float>(skyHeight) * acosf(ray.D.y) * INVPI - 0.5f;
+	const float uFloat = static_cast<float>(skyWidth) * atan2f(direction.z, direction.x) * INV2PI - 0.5f;
+	const float vFloat = static_cast<float>(skyHeight) * acosf(direction.y) * INVPI - 0.5f;
 
 	const int u = static_cast<int>(uFloat);
 	const int v = static_cast<int>(vFloat);
-	//TODO maybe FIX this
-	const int skyIdx = max(0, u + v * skyWidth);
-	return HDRLightContribution * float3(skyPixels[skyIdx * 3], skyPixels[skyIdx * 3 + 1], skyPixels[skyIdx * 3 + 2]);
+
+	const int skyIdx = max(0, u + v * skyWidth) * 3;
+	return HDRLightContribution * float3(skyPixels[skyIdx], skyPixels[skyIdx + 1], skyPixels[skyIdx + 2]);
 }

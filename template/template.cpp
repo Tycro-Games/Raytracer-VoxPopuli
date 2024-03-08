@@ -421,10 +421,10 @@ void JobThread::CreateAndStartThread(unsigned int threadId)
 
 void JobThread::BackgroundTask()
 {
-	while (1)
+	while (run)
 	{
 		WaitForSingleObject(m_GoSignal, INFINITE);
-		while (1)
+		while (run)
 		{
 			Job* job = JobManager::GetJobManager()->GetNextJob();
 			if (!job)
@@ -449,13 +449,6 @@ void Job::RunCodeWrapper()
 
 void InitRandomSeedThread::Main()
 {
-	//using chatgpt to convert the id to a seed
-	std::thread::id threadId = std::this_thread::get_id();
-
-	// Convert std::thread::id to uint
-	const uint id = static_cast<uint>(std::hash<std::thread::id>{}(threadId));
-
-	InitSeed(id);
 }
 
 JobManager* JobManager::m_JobManager = 0;
@@ -468,6 +461,11 @@ JobManager::JobManager(unsigned int threads) : m_NumThreads(threads)
 JobManager::~JobManager()
 {
 	DeleteCriticalSection(&m_CS);
+	for (unsigned int i = 0; i < m_NumThreads; i++)
+	{
+		CloseHandle(m_ThreadDone[i]);
+	}
+	delete[] m_JobThreadList;
 }
 
 void JobManager::CreateJobManager(unsigned int numThreads)

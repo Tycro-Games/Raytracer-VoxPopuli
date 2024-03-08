@@ -4,7 +4,7 @@ class SkyDome
 {
 public:
 	SkyDome();
-	float3 SampleSky(Ray& ray) const;
+	float3 SampleSky(const float3& direction) const;
 	float HDRLightContribution = 5.9f;
 
 private:

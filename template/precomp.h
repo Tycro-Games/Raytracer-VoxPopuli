@@ -203,6 +203,7 @@ public:
 	void BackgroundTask();
 	HANDLE m_GoSignal, m_ThreadHandle;
 	int m_ThreadID;
+	bool run = true;
 };
 
 class JobManager // singleton class!
@@ -239,6 +240,7 @@ protected:
 	HANDLE m_ThreadDone[64];
 	unsigned int m_NumThreads, m_JobCount;
 	JobThread* m_JobThreadList;
+	bool run = true;
 };
 
 // forward declaration of helper functions
@@ -433,7 +435,7 @@ public:
 		/* defined empty so we can omit it from the renderer */
 	}
 
-	static inline JobManager* jm = JobManager::GetJobManager();
+	//static inline JobManager* jm = JobManager::GetJobManager();
 	Surface* screen = 0;
 	bool uiUpdated;
 	uint end_of_base_class = 99999;

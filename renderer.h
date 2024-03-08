@@ -36,6 +36,7 @@ namespace Tmpl8
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
 		float SchlickReflectanceNonMetal(const float cosine);
+		void Update();
 		void Tick(float deltaTime) override;
 		float3 ApplyReinhardJodie(const float3& color);
 		float GetLuminance(const float3& color);

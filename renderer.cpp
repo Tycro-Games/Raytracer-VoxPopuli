@@ -68,13 +68,21 @@ void Renderer::InitMultithreading()
 {
 	const auto numThreads = thread::hardware_concurrency();
 	cout << "Number of threads: " << numThreads << '\n';
+	std::vector<uint32_t> threads;
+	for (uint i = 0; i < numThreads; i++)
+		threads.push_back(i);
+	for_each(execution::par, threads.begin(), threads.end(),
+	         [this](const uint32_t x)
+	         {
+		         x;
+		         //using chatgpt to convert the id to a seed
+		         std::thread::id threadId = std::this_thread::get_id();
 
-	JobManager::CreateJobManager(numThreads);
-	JobManager* jobManager = JobManager::GetJobManager();
-	InitRandomSeedThread job;
-	for (uint i = 0; i < jobManager->GetNumThreads(); i++)
-		jobManager->AddJob2(&job);
-	jobManager->RunJobs();
+		         // Convert std::thread::id to uint
+		         const uint id = static_cast<uint>(std::hash<std::thread::id>{}(threadId));
+
+		         InitSeed(id);
+	         });
 }
 
 void Renderer::SetUpLights()
@@ -464,7 +472,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	// Break early if no intersection
 	if (ray.indexMaterial == MaterialType::NONE)
 	{
-		return skyDome.SampleSky(ray);
+		return skyDome.SampleSky(ray.D);
 	}
 	//return .5f * (normal + 1);
 
@@ -568,7 +576,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		return ray.GetAlbedo(*this) * ray.GetEmissive(*this);
 
 	case MaterialType::NONE:
-		return skyDome.SampleSky(ray);
+		return skyDome.SampleSky(ray.D);
 	//random materials from the models
 	default:
 		float3 incLight{0};
@@ -596,29 +604,20 @@ float Renderer::SchlickReflectanceNonMetal(const float cosine)
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
-// -----------------------------------------------------------
-// Main application tick function - Executed once per frame
-// -----------------------------------------------------------
-void Renderer::Tick(const float deltaTime)
+void Renderer::Update()
 {
-	//DOF
-	if (camera.defocusJitter > 0.0f)
-	{
-		Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
-		mainScene.FindNearest(focusRay);
-
-		camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
-	}
-
-
-	// pixel loop
-	const Timer t;
-
+	//do only once
 	//c++ 17 onwards parallel for loop
+
 #ifdef PROFILE
 	for (uint32_t y = 0; y < SCRHEIGHT; y++)
 	{
-		//do only once
+#else
+	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
+		[this](const uint32_t y)
+		{
+#endif
+
 		const uint32_t pitch = y * SCRWIDTH;
 		for (uint32_t x = 0; x < SCRWIDTH; x++)
 		{
@@ -629,8 +628,8 @@ void Renderer::Tick(const float deltaTime)
 			{
 				//Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
 				//AA
-				const float randomXDir = RandomFloat() - .5f;
-				const float randomYDir = RandomFloat() - .5f;
+				const float randomXDir = RandomFloat() * antiAliasingStrength;
+				const float randomYDir = RandomFloat() * antiAliasingStrength;
 
 				Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
 				                                      static_cast<float>(y) + randomYDir);
@@ -654,50 +653,30 @@ void Renderer::Tick(const float deltaTime)
 			pixel = ApplyReinhardJodie(pixel);
 			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		}
+#ifdef PROFILE
 	}
-
 #else
-	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
-	         [this](const uint32_t y)
-	         {
-		         //do only once
-		         const uint32_t pitch = y * SCRWIDTH;
-		         for (uint32_t x = 0; x < SCRWIDTH; x++)
-		         {
-			         //Ray triangleRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
-			         float3 totalLight{0};
-
-			         for (int i = 0; i < maxRayPerPixel; i++)
-			         {
-				         //Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
-				         //AA
-				         const float randomXDir = RandomFloat() * antiAliasingStrength;
-				         const float randomYDir = RandomFloat() * antiAliasingStrength;
-
-				         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-				                                               static_cast<float>(y) + randomYDir);
-				         /* primaryRay.O.x += randomXOri;
-				          primaryRay.O.y += randomYOri;*/
-
-				         totalLight += Trace(primaryRay, maxBounces);
-			         }
-
-			         //  const float4 newPixel = float4{totalLight / static_cast<float>(maxRayPerPixel), 0.0f};
-			         const float4 newPixel = totalLight;
-			         /*  bvh.IntersectBVH(triangleRay, 0);
-			           if (triangleRay.t < 1e34f && triangleRay.t < primaryRay.t)
-				           pixel = float4{1.0f};*/
-			         // translate accumulator contents to rgb32 pixels
-			         const float weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-			         //we accumulate
-			         float4 pixel = accumulator[x + pitch] * (1 - weight) + newPixel * weight;
-			         accumulator[x + pitch] = pixel;
-
-			         pixel = ApplyReinhardJodie(pixel);
-			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		         }
 	         });
 #endif
+}
+
+// -----------------------------------------------------------
+// Main application tick function - Executed once per frame
+// -----------------------------------------------------------
+void Renderer::Tick(const float deltaTime)
+{
+	// pixel loop
+	const Timer t;
+
+	//DOF from Remi
+	if (camera.defocusJitter > 0.0f)
+	{
+		Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
+		mainScene.FindNearest(focusRay);
+
+		camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
+	}
+	Update();
 
 
 	// performance report - running average - ms, MRays/s

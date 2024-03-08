@@ -467,6 +467,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	FindNearest(ray);
 #pragma endregion
 
+
 	//evaluate materials and trace again for reflections and refraction
 
 	// Break early if no intersection
@@ -604,6 +605,52 @@ float Renderer::SchlickReflectanceNonMetal(const float cosine)
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
+float2 Renderer::ReprojectToPreviousFrame(const float3& worldPosition)
+{
+	// Calculate the distances to the four planes of the view pyramid of the previous frame
+	float d1 = dot(prevCamera.topLeft - prevCamera.camPos, worldPosition - prevCamera.camPos);
+	float d2 = dot(prevCamera.topRight - prevCamera.camPos, worldPosition - prevCamera.camPos);
+	float d3 = dot(prevCamera.bottomLeft - prevCamera.camPos, worldPosition - prevCamera.camPos);
+	float d4 = dot(prevCamera.topLeft - prevCamera.topRight, worldPosition - prevCamera.topRight);
+
+	float x = d1 / (d1 + d2);
+
+	float y = d3 / (d3 + d4);
+
+	float2 screenPosition;
+	screenPosition.x = x * SCRWIDTH;
+	screenPosition.y = y * SCRHEIGHT;
+
+	return screenPosition;
+}
+
+// Function to sample color information from the previous frame using screen space position
+float4 Renderer::SamplePreviousFrameColor(const float2& screenPosition, const float4* prevFramePixels)
+{
+	int x = static_cast<int>(screenPosition.x);
+	int y = static_cast<int>(screenPosition.y);
+
+	x = clamp(x, 0, SCRWIDTH - 1);
+	y = clamp(y, 0, SCRHEIGHT - 1);
+
+	int pixelIndex = x + y * SCRWIDTH;
+
+
+	return prevFramePixels[pixelIndex];
+}
+
+float4 Renderer::BlendColor(const float4& currentColor, const float4& previousColor, float blendFactor)
+{
+	// Weighted averaging of colors
+	float4 blendedColor;
+	blendedColor.x = (1.0f - blendFactor) * currentColor.x + blendFactor * previousColor.x;
+	blendedColor.y = (1.0f - blendFactor) * currentColor.y + blendFactor * previousColor.y;
+	blendedColor.z = (1.0f - blendFactor) * currentColor.z + blendFactor * previousColor.z;
+	blendedColor.w = (1.0f - blendFactor) * currentColor.w + blendFactor * previousColor.w;
+
+	return blendedColor;
+}
+
 void Renderer::Update()
 {
 	//do only once
@@ -614,50 +661,61 @@ void Renderer::Update()
 	{
 #else
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
-		[this](const uint32_t y)
-		{
+	         [this](const uint32_t y)
+	         {
 #endif
 
-		const uint32_t pitch = y * SCRWIDTH;
-		for (uint32_t x = 0; x < SCRWIDTH; x++)
-		{
-			//Ray triangleRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
-			float3 totalLight{0};
+		         const uint32_t pitch = y * SCRWIDTH;
+		         for (uint32_t x = 0; x < SCRWIDTH; x++)
+		         {
+			         //Ray triangleRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
+			         float3 totalLight{0};
 
-			for (int i = 0; i < maxRayPerPixel; i++)
-			{
-				//Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
-				//AA
-				const float randomXDir = RandomFloat() * antiAliasingStrength;
-				const float randomYDir = RandomFloat() * antiAliasingStrength;
 
-				Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-				                                      static_cast<float>(y) + randomYDir);
-				/* primaryRay.O.x += randomXOri;
-				 primaryRay.O.y += randomYOri;*/
+			         //Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
+			         //AA
+			         const float randomXDir = RandomFloat() * antiAliasingStrength;
+			         const float randomYDir = RandomFloat() * antiAliasingStrength;
 
-				totalLight += Trace(primaryRay, maxBounces);
-			}
+			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+			                                               static_cast<float>(y) + randomYDir);
+			         /* primaryRay.O.x += randomXOri;
+			          primaryRay.O.y += randomYOri;*/
 
-			//  const float4 newPixel = float4{totalLight / static_cast<float>(maxRayPerPixel), 0.0f};
-			const float4 newPixel = totalLight;
-			/*  bvh.IntersectBVH(triangleRay, 0);
-			  if (triangleRay.t < 1e34f && triangleRay.t < primaryRay.t)
-				  pixel = float4{1.0f};*/
-			// translate accumulator contents to rgb32 pixels
-			const float weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-			//we accumulate
-			float4 pixel = accumulator[x + pitch] * (1 - weight) + newPixel * weight;
-			accumulator[x + pitch] = pixel;
+			         totalLight += Trace(primaryRay, maxBounces);
 
-			pixel = ApplyReinhardJodie(pixel);
-			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		}
+
+			         //use this for reprojection?
+			         float2 previosPixelCoodinate = ReprojectToPreviousFrame(primaryRay.IntersectionPoint());
+
+			         float4 previousFrameColor = SamplePreviousFrameColor(
+				         previosPixelCoodinate, accumulator);
+
+
+			         if (staticCamera)
+				         weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+			         //we accumulate
+			         float4 blendedColor = BlendColor(totalLight, previousFrameColor, weight);
+			         float4 pixel = blendedColor;
+			         accumulator[x + pitch] = blendedColor;
+
+			         pixel = ApplyReinhardJodie(pixel);
+			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+		         }
 #ifdef PROFILE
 	}
 #else
 	         });
 #endif
+	numRenderedFrames++;
+}
+
+void Renderer::CopyToPrevCamera()
+{
+	prevCamera.camPos = camera.camPos;
+	prevCamera.topLeft = camera.topLeft;
+	prevCamera.topRight = camera.topRight;
+	prevCamera.bottomLeft = camera.bottomLeft;
 }
 
 // -----------------------------------------------------------
@@ -678,7 +736,6 @@ void Renderer::Tick(const float deltaTime)
 	}
 	Update();
 
-
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
@@ -686,12 +743,12 @@ void Renderer::Tick(const float deltaTime)
 	float fps = 1000.0f / avg, rps = (SCRWIDTH * SCRHEIGHT) / avg;
 	printf("%5.2fms (%.1ffps) - %.1fMrays/s\n", avg, fps, rps / 1000);
 	// handle user input
-	numRenderedFrames++;
-
 	if (camera.HandleInput(deltaTime))
 	{
 		ResetAccumulator();
 	}
+
+	CopyToPrevCamera();
 }
 
 
@@ -924,6 +981,20 @@ void Renderer::HandleImguiCamera()
 		return;
 
 	ImGui::SliderFloat("Perlin frq", &frqGenerationPerlinNoise, 0.001f, .5f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+	ImGui::SliderFloat("Accumulation weight", &weight, 0.001f, 1.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+	ImGui::Checkbox("Accumulate", &staticCamera);
 
 	if (ImGui::IsItemEdited())
 

@@ -36,7 +36,11 @@ namespace Tmpl8
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
 		float SchlickReflectanceNonMetal(const float cosine);
+		float2 ReprojectToPreviousFrame(const float3& worldPosition);
+		float4 SamplePreviousFrameColor(const float2& screenPosition, const float4* prevFramePixels);
+		float4 BlendColor(const float4& currentColor, const float4& previousColor, float blendFactor);
 		void Update();
+		void CopyToPrevCamera();
 		void Tick(float deltaTime) override;
 		float3 ApplyReinhardJodie(const float3& color);
 		float GetLuminance(const float3& color);
@@ -82,17 +86,22 @@ namespace Tmpl8
 		//{
 		//	/* implement if you want to handle keys */
 		//}
+		//reprojection
 
+
+		//reprojection
 		//Cherno multithreading  https://www.youtube.com/watch?v=46ddlUImiQA
 		std::vector<uint32_t> vertIterator;
 		// data members
 		int2 mousePos;
 		int32_t maxBounces = 5;
 		int32_t maxRayPerPixel = 1;
-
+		float weight = 1.0f;
+		bool staticCamera = false;
 		float4* accumulator;
 		Scene mainScene;
 		Camera camera;
+		Camera prevCamera;
 		float frqGenerationPerlinNoise = .03f;
 		float HDRLightContribution = 1.5f;
 		float antiAliasingStrength = 1.0f;

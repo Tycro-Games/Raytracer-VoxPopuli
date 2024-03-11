@@ -344,8 +344,8 @@ void Renderer::RemoveTriangle()
 void Renderer::AddVoxelVolume()
 {
 	voxelVolumes.emplace_back(Scene({0}, {1}));
-	voxelVolumes.emplace_back(Scene({1, 0, 0}, {1}));
-	voxelVolumes.emplace_back(Scene({1, 1, 0}, {1}));
+	/*voxelVolumes.emplace_back(Scene({1, 0, 0}, {1}));
+	voxelVolumes.emplace_back(Scene({1, 1, 0}, {1}));*/
 }
 
 void Renderer::ShapesSetUp()
@@ -549,13 +549,15 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			//get the IOR
 			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
 			//we need to get to the next voxel
+			bool isInsideVolume = true;
 			if (isInGlass)
 			{
 				color = ray.GetAlbedo(*this);
 				//only the first one has glass
-				voxelVolumes[0].FindMaterialExit(ray, MaterialType::GLASS);
+				isInsideVolume = voxelVolumes[0].FindMaterialExit(ray, MaterialType::GLASS);
 			}
-
+			if (!isInsideVolume)
+				return skyDome.SampleSky(ray.D);
 
 			float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
 			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
@@ -583,8 +585,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
 
-			//if (!isInsideVolume)
-			//	return skyDome.SampleSky(newRay);
+
 			return Trace(newRay, depth - 1) * color;
 		}
 	case MaterialType::EMISSIVE:

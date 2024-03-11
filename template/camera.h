@@ -22,6 +22,46 @@ namespace Tmpl8
 			ahead = normalize(camTarget - camPos);
 		}
 
+		//From Lynn
+		float3 leftNormal;
+		float3 rightNormal;
+		float3 topNormal;
+		float3 bottomNormal;
+
+		float2 PointToUV(const float3& point) const
+		{
+			const float3 delta{point - camPos};
+
+			// Get the distance between each frustum and the point
+			const float leftDistance{dot(leftNormal, delta)};
+			const float rightDistance{dot(rightNormal, delta)};
+			const float topDistance{dot(topNormal, delta)};
+			const float bottomDistance{dot(bottomNormal, delta)};
+
+			// Get the uv-coordinate of where on the screen the point would be visible from
+			const float u{leftDistance / (leftDistance + rightDistance)};
+			const float v{topDistance / (topDistance + bottomDistance)};
+
+			return {u, v};
+		}
+
+
+		//From Lynn
+		void SetFrustumNormals()
+		{
+			// View pyramid directions
+			const float3 leftFrustumDirection{(2 * ahead) - (aspect * right)};
+			const float3 rightFrustumDirection{(2 * ahead) + (aspect * right)};
+			const float3 topFrustumDirection{(2 * ahead) + up};
+			const float3 bottomFrustumDirection{(2 * ahead) - up};
+
+			// Left handed coordinate system
+			leftNormal = cross(up, leftFrustumDirection);
+			rightNormal = cross(rightFrustumDirection, up);
+			topNormal = cross(right, topFrustumDirection);
+			bottomNormal = cross(bottomFrustumDirection, right);
+		}
+
 		Ray GetPrimaryRay(const float x, const float y) const
 		{
 			//conceptually used https://youtu.be/Qz0KTGYJtUk?si=9en1nLsgxqQyoGW2&t=2113
@@ -115,6 +155,7 @@ namespace Tmpl8
 		float3 ahead, right, up;
 		float3 camPos, camTarget;
 		float3 topLeft, topRight, bottomLeft;
+
 		const float stopAngle = 0.9f;
 		float focalDistance{1.0f};
 		float focalTargetDistance{1.0f};

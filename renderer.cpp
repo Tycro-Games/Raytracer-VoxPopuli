@@ -76,7 +76,7 @@ void Renderer::InitMultithreading()
 	         {
 		         x;
 		         //using chatgpt to convert the id to a seed
-		         std::thread::id threadId = std::this_thread::get_id();
+		         const std::thread::id threadId = std::this_thread::get_id();
 
 		         // Convert std::thread::id to uint
 		         const uint id = static_cast<uint>(std::hash<std::thread::id>{}(threadId));
@@ -198,8 +198,10 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightD
 
 bool Renderer::IsOccluded(Ray& ray) const
 {
-	if (mainScene.IsOccluded(ray))
-		return true;
+	for (auto& scene : voxelVolumes)
+		if (scene.IsOccluded(ray))
+			return true;
+
 
 	for (auto& sphere : spheres)
 	{
@@ -253,8 +255,9 @@ float3 Renderer::DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& 
 	const Ray shadowRay(OffsetRay(intersectionPoint, normal), (dir));
 
 
-	if (mainScene.IsOccluded(shadowRay))
-		return 0;
+	for (auto& scene : voxelVolumes)
+		if (scene.IsOccluded(shadowRay))
+			return 0;
 
 	return lightIntensity * k;
 }
@@ -338,13 +341,23 @@ void Renderer::RemoveTriangle()
 	triangles.pop_back();
 }
 
+void Renderer::AddVoxelVolume()
+{
+	voxelVolumes.emplace_back(Scene({0}, {1}));
+	voxelVolumes.emplace_back(Scene({1, 0, 0}, {1}));
+	voxelVolumes.emplace_back(Scene({1, 1, 0}, {1}));
+}
+
 void Renderer::ShapesSetUp()
 {
 	AddSphere();
+	AddVoxelVolume();
 }
 
 void Renderer::Init()
 {
+	CopyToPrevCamera();
+
 	//sizeof(Ray);
 	InitSeed(static_cast<uint>(time(nullptr)));
 
@@ -427,8 +440,9 @@ float3 Renderer::Refract(const float3 direction, const float3 normal, const floa
 
 void Renderer::FindNearest(Ray& ray)
 {
-	mainScene.FindNearest(ray);
-	ray.rayNormal = ray.GetNormalVoxel();
+	for (auto& scene : voxelVolumes)
+		scene.FindNearest(ray);
+
 	//get the nearest t
 	{
 		Ray sphereHit{ray.O, ray.D};
@@ -538,8 +552,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			if (isInGlass)
 			{
 				color = ray.GetAlbedo(*this);
-				//outside bounds if false, no handling of other entities
-				mainScene.FindMaterialExit(ray, MaterialType::GLASS);
+				//only the first one has glass
+				voxelVolumes[0].FindMaterialExit(ray, MaterialType::GLASS);
 			}
 
 
@@ -605,50 +619,26 @@ float Renderer::SchlickReflectanceNonMetal(const float cosine)
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
-float2 Renderer::ReprojectToPreviousFrame(const float3& worldPosition)
+
+float4 Renderer::SamplePreviousFrameColor(const float2& screenPosition)
 {
-	// Calculate the distances to the four planes of the view pyramid of the previous frame
-	float d1 = dot(prevCamera.topLeft - prevCamera.camPos, worldPosition - prevCamera.camPos);
-	float d2 = dot(prevCamera.topRight - prevCamera.camPos, worldPosition - prevCamera.camPos);
-	float d3 = dot(prevCamera.bottomLeft - prevCamera.camPos, worldPosition - prevCamera.camPos);
-	float d4 = dot(prevCamera.topLeft - prevCamera.topRight, worldPosition - prevCamera.topRight);
+	const int x = static_cast<int>((screenPosition.x * (SCRWIDTH)));
+	const int y = static_cast<int>((screenPosition.y * (SCRHEIGHT)));
 
-	float x = d1 / (d1 + d2);
-
-	float y = d3 / (d3 + d4);
-
-	float2 screenPosition;
-	screenPosition.x = x * SCRWIDTH;
-	screenPosition.y = y * SCRHEIGHT;
-
-	return screenPosition;
-}
-
-// Function to sample color information from the previous frame using screen space position
-float4 Renderer::SamplePreviousFrameColor(const float2& screenPosition, const float4* prevFramePixels)
-{
-	int x = static_cast<int>(screenPosition.x);
-	int y = static_cast<int>(screenPosition.y);
-
-	x = clamp(x, 0, SCRWIDTH - 1);
-	y = clamp(y, 0, SCRHEIGHT - 1);
-
-	int pixelIndex = x + y * SCRWIDTH;
+	const size_t pixelIndex = x + y * SCRWIDTH;
 
 
-	return prevFramePixels[pixelIndex];
+	return accumulator[pixelIndex];
 }
 
 float4 Renderer::BlendColor(const float4& currentColor, const float4& previousColor, float blendFactor)
 {
-	// Weighted averaging of colors
-	float4 blendedColor;
-	blendedColor.x = (1.0f - blendFactor) * currentColor.x + blendFactor * previousColor.x;
-	blendedColor.y = (1.0f - blendFactor) * currentColor.y + blendFactor * previousColor.y;
-	blendedColor.z = (1.0f - blendFactor) * currentColor.z + blendFactor * previousColor.z;
-	blendedColor.w = (1.0f - blendFactor) * currentColor.w + blendFactor * previousColor.w;
+	return currentColor * (1.0f - blendFactor) + previousColor * blendFactor;
+}
 
-	return blendedColor;
+bool Renderer::IsValid(const float2& uv)
+{
+	return uv.x >= 0.0f && uv.x < 1.0f && uv.y >= 0.0f && uv.y < 1.0f;
 }
 
 void Renderer::Update()
@@ -668,38 +658,45 @@ void Renderer::Update()
 		         const uint32_t pitch = y * SCRWIDTH;
 		         for (uint32_t x = 0; x < SCRWIDTH; x++)
 		         {
-			         //Ray triangleRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
-			         float3 totalLight{0};
+			         float3 newPixel{0};
 
 
-			         //Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x), static_cast<float>(y));
 			         //AA
 			         const float randomXDir = RandomFloat() * antiAliasingStrength;
 			         const float randomYDir = RandomFloat() * antiAliasingStrength;
 
 			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
 			                                               static_cast<float>(y) + randomYDir);
-			         /* primaryRay.O.x += randomXOri;
-			          primaryRay.O.y += randomYOri;*/
+			         //get new pixel
+			         newPixel = Trace(primaryRay, maxBounces);
+			         float4 pixel = newPixel;
 
-			         totalLight += Trace(primaryRay, maxBounces);
+			         ////use this for reprojection?
+			         const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
+			         if (IsValid(previousPixelCoordinate) && !staticCamera)
+			         {
+				         float4 previousFrameColor = SamplePreviousFrameColor(
+					         previousPixelCoordinate);
 
 
-			         //use this for reprojection?
-			         float2 previosPixelCoodinate = ReprojectToPreviousFrame(primaryRay.IntersectionPoint());
-
-			         float4 previousFrameColor = SamplePreviousFrameColor(
-				         previosPixelCoodinate, accumulator);
-
+				         /*         if (staticCamera)
+					                  weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
+				         //weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
+				         const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
+				                                                1.0f - weight);
+				         pixel = blendedColor;
+			         }
 
 			         if (staticCamera)
+			         {
 				         weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-			         //we accumulate
-			         float4 blendedColor = BlendColor(totalLight, previousFrameColor, weight);
-			         float4 pixel = blendedColor;
-			         accumulator[x + pitch] = blendedColor;
+				         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			         }
+			         //display
+			         accumulator[x + pitch] = pixel;
 
 			         pixel = ApplyReinhardJodie(pixel);
+
 			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		         }
 #ifdef PROFILE
@@ -707,15 +704,18 @@ void Renderer::Update()
 #else
 	         });
 #endif
+
 	numRenderedFrames++;
 }
 
 void Renderer::CopyToPrevCamera()
 {
 	prevCamera.camPos = camera.camPos;
-	prevCamera.topLeft = camera.topLeft;
-	prevCamera.topRight = camera.topRight;
-	prevCamera.bottomLeft = camera.bottomLeft;
+
+	prevCamera.bottomNormal = camera.bottomNormal;
+	prevCamera.leftNormal = camera.leftNormal;
+	prevCamera.rightNormal = camera.rightNormal;
+	prevCamera.topNormal = camera.topNormal;
 }
 
 // -----------------------------------------------------------
@@ -723,6 +723,12 @@ void Renderer::CopyToPrevCamera()
 // -----------------------------------------------------------
 void Renderer::Tick(const float deltaTime)
 {
+	if (camera.HandleInput(deltaTime))
+	{
+		ResetAccumulator();
+	}
+	camera.SetFrustumNormals();
+
 	// pixel loop
 	const Timer t;
 
@@ -730,10 +736,12 @@ void Renderer::Tick(const float deltaTime)
 	if (camera.defocusJitter > 0.0f)
 	{
 		Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
-		mainScene.FindNearest(focusRay);
+		for (auto& scene : voxelVolumes)
+			scene.FindNearest(focusRay);
 
 		camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
 	}
+
 	Update();
 
 	// performance report - running average - ms, MRays/s
@@ -743,10 +751,7 @@ void Renderer::Tick(const float deltaTime)
 	float fps = 1000.0f / avg, rps = (SCRWIDTH * SCRHEIGHT) / avg;
 	printf("%5.2fms (%.1ffps) - %.1fMrays/s\n", avg, fps, rps / 1000);
 	// handle user input
-	if (camera.HandleInput(deltaTime))
-	{
-		ResetAccumulator();
-	}
+
 
 	CopyToPrevCamera();
 }
@@ -994,6 +999,13 @@ void Renderer::HandleImguiCamera()
 	{
 		ResetAccumulator();
 	}
+	ImGui::SliderFloat(" threshold rejection", &colorThreshold, 0.001f, 1.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
 	ImGui::Checkbox("Accumulate", &staticCamera);
 
 	if (ImGui::IsItemEdited())
@@ -1058,78 +1070,6 @@ void Renderer::HandleImguiCamera()
 	if (ImGui::IsItemEdited())
 
 	{
-		ResetAccumulator();
-	}
-
-	if (ImGui::Button("Generate new Perlin noise"))
-
-	{
-		mainScene.GenerateSomeNoise(frqGenerationPerlinNoise);
-
-		ResetAccumulator();
-	}
-	if (ImGui::Button("Generate new Sphere emissive"))
-
-	{
-		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
-
-		ResetAccumulator();
-	}
-	ImGui::SliderFloat("radius sphere", &radiusEmissiveSphere, 0.0f, WORLDSIZE);
-
-	if (ImGui::IsItemEdited())
-
-	{
-		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
-		ResetAccumulator();
-	}
-	std::vector<const char*> cStr; // ImGui needs const char* array
-
-
-	ImGui::SliderInt("Material Types", &matTypeSphere, 0, MaterialType::EMISSIVE);
-	if (ImGui::IsItemEdited())
-
-	{
-		mainScene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
-		ResetAccumulator();
-	}
-	//from Sven 232380
-
-
-	// Dropdown for selecting .vox file
-
-	static int selectedItem = 0; // Index of the selected item in the combo box
-
-
-	std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
-
-	for (const auto& file : voxFiles)
-
-	{
-		cStrVoxFiles.push_back(file.c_str());
-	}
-
-
-	ImGui::Combo("Vox Files", &selectedItem, cStrVoxFiles.data(), static_cast<int>(cStrVoxFiles.size()));
-
-	ImGui::SliderFloat3("Vox model size", mainScene.scaleModel.cell, 0.0f, 1.0f);
-
-	if (ImGui::IsItemEdited())
-
-	{
-		ResetAccumulator();
-	}
-
-
-	if (ImGui::Button("Load Vox File") && selectedItem >= 0)
-
-	{
-		// Load the selected .vox file
-
-		const std::string path = "assets/" + voxFiles[selectedItem];
-
-		mainScene.LoadModel(*this, path.c_str());
-
 		ResetAccumulator();
 	}
 }
@@ -1317,9 +1257,113 @@ void Renderer::HandleImguiTriangles()
 	}
 }
 
+void Renderer::HandleImguiVoxelVolumes()
+{
+	if (!ImGui::CollapsingHeader("Volumes"))
+
+		return;
+	int i = 0;
+	for (auto& scene : voxelVolumes)
+	{
+		if (ImGui::Button(("Generate new Perlin noise" + to_string(i)).c_str()))
+
+		{
+			scene.GenerateSomeNoise(frqGenerationPerlinNoise);
+
+			ResetAccumulator();
+		}
+		if (ImGui::Button(("Generate new Sphere emissive" + to_string(i)).c_str()))
+
+		{
+			scene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
+
+			ResetAccumulator();
+		}
+		ImGui::SliderFloat(("radius volume sphere" + to_string(i)).c_str(), &radiusEmissiveSphere, 0.0f, WORLDSIZE);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			scene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
+			ResetAccumulator();
+		}
+		std::vector<const char*> cStr; // ImGui needs const char* array
+
+
+		ImGui::SliderInt(("Material Types" + to_string(i)).c_str(), &matTypeSphere, 0, MaterialType::EMISSIVE);
+		if (ImGui::IsItemEdited())
+
+		{
+			scene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
+			ResetAccumulator();
+		}
+
+		//from Sven 232380
+
+
+		// Dropdown for selecting .vox file
+
+		static int selectedItem = 0; // Index of the selected item in the combo box
+
+
+		std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
+
+		for (const auto& file : voxFiles)
+
+		{
+			cStrVoxFiles.push_back(file.c_str());
+		}
+
+
+		ImGui::Combo("Vox Files", &selectedItem, cStrVoxFiles.data(), static_cast<int>(cStrVoxFiles.size()));
+
+		ImGui::SliderFloat3(("Vox model size" + to_string(i)).c_str(), scene.scaleModel.cell, 0.0f, 1.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), scene.cube.b[0].cell, -10.0f, 10.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+		ImGui::SliderFloat3(("Vox size" + to_string(i)).c_str(), scene.cube.b[1].cell, -10.0f, 10.0f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			ResetAccumulator();
+		}
+
+
+		if (ImGui::Button(("Load Vox File" + to_string(i)).c_str()) && selectedItem >= 0)
+
+		{
+			// Load the selected .vox file
+
+			const std::string path = "assets/" + voxFiles[selectedItem];
+
+			scene.LoadModel(*this, path.c_str());
+
+			ResetAccumulator();
+		}
+		i++;
+	}
+}
+
 void Renderer::UI()
 
 {
+	// ImGui begin
+	if (!ImGui::Begin("Debug Window"))
+	{
+		ImGui::End();
+		return;
+	}
 	// ray query on mouse
 
 	/*Ray r = camera.GetPrimaryRay((float)mousePos.x, (float)mousePos.y);
@@ -1327,8 +1371,6 @@ void Renderer::UI()
 	*this.FindNearest(r);
 
 	ImGui::Text("voxel: %i", r.voxel);*/
-
-	ImGui::Begin("Debug");
 
 
 	ImGui::BeginChild("Scrolling");
@@ -1353,12 +1395,15 @@ void Renderer::UI()
 	{
 		HandleImguiMaterials();
 	}
-	if (ImGui::CollapsingHeader("Entities"))
+	ImGui::BeginTabBar("##TabBar");
+	if (ImGui::BeginTabItem("Entities"))
 
 	{
 		HandleImguiSpheres();
 
 		HandleImguiTriangles();
+		HandleImguiVoxelVolumes();
+		ImGui::EndTabItem();
 	}
 
 	ImGui::BeginChild("General");

@@ -26,6 +26,7 @@ namespace Tmpl8
 		void RemoveLastSphere();
 		void AddTriangle();
 		void RemoveTriangle();
+		void AddVoxelVolume();
 		void ShapesSetUp();
 		// game flow methods
 		void Init() override;
@@ -36,9 +37,11 @@ namespace Tmpl8
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
 		float SchlickReflectanceNonMetal(const float cosine);
-		float2 ReprojectToPreviousFrame(const float3& worldPosition);
-		float4 SamplePreviousFrameColor(const float2& screenPosition, const float4* prevFramePixels);
+		float CalculateDistanceToPlane(const float3& point, const float3& normal, const float3& pointOnPlane);
+		float3 CalculatePlaneNormal(const float3& point1, const float3& point2, const float3& point3);
+		float4 SamplePreviousFrameColor(const float2& screenPosition);
 		float4 BlendColor(const float4& currentColor, const float4& previousColor, float blendFactor);
+		bool IsValid(const float2& uv);
 		void Update();
 		void CopyToPrevCamera();
 		void Tick(float deltaTime) override;
@@ -53,6 +56,7 @@ namespace Tmpl8
 		void HandleImguiMaterials();
 		void HandleImguiSpheres();
 		void HandleImguiTriangles();
+		void HandleImguiVoxelVolumes();
 		void UI() override;
 		void Shutdown() override;
 		/* Input
@@ -96,17 +100,18 @@ namespace Tmpl8
 		int2 mousePos;
 		int32_t maxBounces = 5;
 		int32_t maxRayPerPixel = 1;
-		float weight = 1.0f;
-		bool staticCamera = false;
+		float weight = .10f;
+		bool staticCamera = true;
 		float4* accumulator;
-		Scene mainScene;
+
+
 		Camera camera;
 		Camera prevCamera;
 		float frqGenerationPerlinNoise = .03f;
 		float HDRLightContribution = 1.5f;
-		float antiAliasingStrength = 1.0f;
+		float antiAliasingStrength = 0.0f;
 		float radiusEmissiveSphere = 1.0f;
-
+		float colorThreshold = .1f;
 		//materials
 		std::vector<shared_ptr<Material>> metalMaterials;
 		std::vector<shared_ptr<Material>> nonMetalMaterials;
@@ -129,8 +134,9 @@ namespace Tmpl8
 		std::vector<std::string> voxFiles;
 		std::vector<Sphere> spheres;
 		std::vector<Triangle> triangles;
-		int matTypeSphere = MaterialType::GLASS;
+		std::vector<Scene> voxelVolumes;
 
+		int matTypeSphere = MaterialType::GLASS;
 		//BVH
 		BasicBVH bvh;
 	};

@@ -131,7 +131,8 @@ namespace Tmpl8
 
 		void GenerateSomeNoise(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
-		void ResetGrid();
+		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
+		Scene(const float3& position, const float3& size);
 		Scene();
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
@@ -157,7 +158,7 @@ namespace Tmpl8
 		bool IsOccluded(const Ray& ray) const;
 		void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);
 
-		std::array<MaterialType::MatType, GRIDSIZE3> grid{};
+		std::vector<MaterialType::MatType> grid{GRIDSIZE3};
 
 		float3 scaleModel{1.0f};
 		Cube cube;

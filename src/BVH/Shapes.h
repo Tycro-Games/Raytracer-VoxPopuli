@@ -73,9 +73,7 @@ struct Triangle
 	void SetPos(const float3& pos);
 	Triangle(MaterialType::MatType m);
 	Triangle();
-	float3 vertex0, vertex1, vertex2;
-	float3 centroid;
-	float3 position;
+
 
 	void Hit(Ray& ray) const
 	{
@@ -139,5 +137,8 @@ struct Triangle
 		return true;
 	}
 
-	MaterialType::MatType material = MaterialType::NONE;
+	float3 vertex0, vertex1, vertex2; //12
+	float3 centroid; //16
+	float3 position; //20
+	MaterialType::MatType material = MaterialType::NONE; //24
 };

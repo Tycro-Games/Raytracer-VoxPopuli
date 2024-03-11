@@ -5,7 +5,7 @@
 #define OGT_VOX_IMPLEMENTATION
 #include "ogt_vox.h"
 #pragma warning(pop)
-Ray::Ray(const float3 origin, const float3 direction, const float rayLength, const int): O(origin), t(rayLength)
+Ray::Ray(const float3 origin, const float3 direction, const float rayLength, const int) : O(origin), t(rayLength)
 {
 	D = normalize(direction);
 	// calculate reciprocal ray direction for triangles and AABBs
@@ -82,21 +82,41 @@ Cube::Cube(const float3 pos, const float3 size)
 
 float Cube::Intersect(const Ray& ray) const
 {
-	// test if the ray intersects the cube
-	const int signx = ray.D.x < 0, signy = ray.D.y < 0, signz = ray.D.z < 0;
-	float tmin = (b[signx].x - ray.O.x) * ray.rD.x;
-	float tmax = (b[1 - signx].x - ray.O.x) * ray.rD.x;
-	const float tymin = (b[signy].y - ray.O.y) * ray.rD.y;
-	const float tymax = (b[1 - signy].y - ray.O.y) * ray.rD.y;
-	if (tmin > tymax || tymin > tmax) goto miss;
-	tmin = max(tmin, tymin), tmax = min(tmax, tymax);
-	const float tzmin = (b[signz].z - ray.O.z) * ray.rD.z;
-	const float tzmax = (b[1 - signz].z - ray.O.z) * ray.rD.z;
-	if (tmin > tzmax || tzmin > tmax) goto miss; // yeah c has 'goto' ;)
-	if ((tmin = max(tmin, tzmin)) > 0) return tmin;
-miss:
-	return 1e34f;
+	// Determine the signs of ray direction components
+	const int signx = ray.D.x < 0;
+	const int signy = ray.D.y < 0;
+	const int signz = ray.D.z < 0;
+
+	// Calculate t-values for intersection with each face of the cube
+	float tmin_x = (b[signx].x - ray.O.x) * ray.rD.x;
+	float tmax_x = (b[1 - signx].x - ray.O.x) * ray.rD.x;
+
+	float tmin_y = (b[signy].y - ray.O.y) * ray.rD.y;
+	float tmax_y = (b[1 - signy].y - ray.O.y) * ray.rD.y;
+
+	// Check for intersection with Y faces
+	if (tmin_x > tmax_y || tmin_y > tmax_x)
+		return 1e34f; // No intersection
+
+	// Update tmin and tmax
+	tmin_x = std::max(tmin_x, tmin_y);
+	tmax_x = std::min(tmax_x, tmax_y);
+
+	float tmin_z = (b[signz].z - ray.O.z) * ray.rD.z;
+	float tmax_z = (b[1 - signz].z - ray.O.z) * ray.rD.z;
+
+	// Check for intersection with Z faces
+	if (tmin_x > tmax_z || tmin_z > tmax_x)
+		return 1e34f; // No intersection
+
+	// Final intersection
+	tmin_x = std::max(tmin_x, tmin_z);
+	if (tmin_x > 0)
+		return tmin_x;
+
+	return 1e34f; // No intersection
 }
+
 
 bool Cube::Contains(const float3& pos) const
 {
@@ -163,19 +183,29 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 	}
 }
 
-void Scene::ResetGrid()
+void Scene::ResetGrid(MaterialType::MatType type)
 {
-	grid.fill(MaterialType::NONE);
+	std::fill(grid.begin(), grid.end(), type);
+}
+
+Scene::Scene(const float3& position, const float3& size)
+{
+	// the voxel world sits in a 1x1x1 cube
+	cube = Cube(position, size);
+	ResetGrid(MaterialType::NON_METAL_BLUE);
+	// initialize the mainScene using Perlin noise, parallel over z
+	//LoadModel("assets/teapot.vox");
+	GenerateSomeNoise();
 }
 
 Scene::Scene()
 {
 	// the voxel world sits in a 1x1x1 cube
-	cube = Cube(float3(0, 0, 0), float3(1, 1, 1));
+	cube = Cube(float3(0), float3(1));
 	ResetGrid();
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	GenerateSomeNoise();
+	//GenerateSomeNoise();
 }
 
 // a helper function to load a magica voxel scene given a filename from https://github.com/jpaver/opengametools/blob/master/demo/demo_vox.cpp
@@ -294,17 +324,22 @@ bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
 	if (!cube.Contains(ray.O))
 	{
 		state.t = cube.Intersect(ray);
-		if (state.t > 1e33f) return false; // ray misses voxel data entirely
+		if (state.t > 1e33f) return false;
+		// ray misses voxel data entirely
 	}
 	// setup amanatides & woo - assume world is 1x1x1, from (0,0,0) to (1,1,1)
-	static const float cellSize = 1.0f / GRIDSIZE;
+	//TODO change this to any position
+	const float3 voxelPosition = cube.b[0];
+	const float3 voxelSize = cube.b[1] - cube.b[0];
+	static constexpr float cellSize = 1.0f / GRIDSIZE;
 	state.step = make_int3(1 - ray.Dsign * 2);
-	const float3 posInGrid = GRIDSIZE * (ray.O + (state.t + 0.00005f) * ray.D);
+
+	const float3 posInGrid = GRIDSIZE * ((ray.O - voxelPosition) + (state.t + 0.00005f) * ray.D) / voxelSize;
 	const float3 gridPlanes = (ceilf(posInGrid) - ray.Dsign) * cellSize;
 	const int3 P = clamp(make_int3(posInGrid), 0, GRIDSIZE - 1);
 	state.X = P.x, state.Y = P.y, state.Z = P.z;
 	state.tdelta = cellSize * float3(state.step) * ray.rD;
-	state.tmax = (gridPlanes - ray.O) * ray.rD;
+	state.tmax = ((gridPlanes * voxelSize) - (ray.O - voxelPosition)) * ray.rD;
 	// proceed with traversal
 
 	return true;
@@ -315,13 +350,15 @@ void Scene::FindNearest(Ray& ray) const
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
 	if (!Setup3DDDA(ray, s)) return;
+	//TODO optimize by stopping early
 	// start stepping
-	while (1)
+	while (s.t < ray.t)
 	{
 		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != MaterialType::NONE)
+		if (cell != MaterialType::NONE && s.t < ray.t)
 		{
 			ray.t = s.t;
+			ray.rayNormal = ray.GetNormalVoxel();
 			ray.indexMaterial = cell;
 			break;
 		}
@@ -426,7 +463,6 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 	// - This code can be ported to GPU.
 	return false;
 }
-
 
 bool Scene::IsOccluded(const Ray& ray) const
 {

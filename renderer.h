@@ -26,6 +26,7 @@ namespace Tmpl8
 		void RemoveLastSphere();
 		void AddTriangle();
 		void RemoveTriangle();
+		void RemoveVoxelVolume();
 		void AddVoxelVolume();
 		void ShapesSetUp();
 		// game flow methods

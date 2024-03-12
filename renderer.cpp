@@ -341,11 +341,14 @@ void Renderer::RemoveTriangle()
 	triangles.pop_back();
 }
 
+void Renderer::RemoveVoxelVolume()
+{
+	voxelVolumes.pop_back();
+}
+
 void Renderer::AddVoxelVolume()
 {
-	voxelVolumes.emplace_back(Scene({0}, {1}));
-	/*voxelVolumes.emplace_back(Scene({1, 0, 0}, {1}));
-	voxelVolumes.emplace_back(Scene({1, 1, 0}, {1}));*/
+	voxelVolumes.emplace_back(Scene({0}));
 }
 
 void Renderer::ShapesSetUp()
@@ -982,10 +985,6 @@ void Renderer::HandleImguiDirectionalLight()
 void Renderer::HandleImguiCamera()
 
 {
-	if (!ImGui::CollapsingHeader("Camera"))
-
-		return;
-
 	ImGui::SliderFloat("Perlin frq", &frqGenerationPerlinNoise, 0.001f, .5f);
 
 	if (ImGui::IsItemEdited())
@@ -1264,6 +1263,14 @@ void Renderer::HandleImguiVoxelVolumes()
 
 		return;
 	int i = 0;
+	static int selectedItem = 0; // Index of the selected item in the combo box
+	std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
+
+	for (const auto& file : voxFiles)
+
+	{
+		cStrVoxFiles.push_back(file.c_str());
+	}
 	for (auto& scene : voxelVolumes)
 	{
 		if (ImGui::Button(("Generate new Perlin noise" + to_string(i)).c_str()))
@@ -1304,19 +1311,16 @@ void Renderer::HandleImguiVoxelVolumes()
 
 		// Dropdown for selecting .vox file
 
-		static int selectedItem = 0; // Index of the selected item in the combo box
 
-
-		std::vector<const char*> cStrVoxFiles; // ImGui needs const char* array
-
-		for (const auto& file : voxFiles)
-
+		if (ImGui::Combo(("Vox Files" + to_string(i)).c_str(), &selectedItem, cStrVoxFiles.data(),
+		                 static_cast<int>(cStrVoxFiles.size())))
 		{
-			cStrVoxFiles.push_back(file.c_str());
+			const std::string path = "assets/" + voxFiles[selectedItem];
+
+			scene.LoadModel(*this, path.c_str());
+
+			ResetAccumulator();
 		}
-
-
-		ImGui::Combo("Vox Files", &selectedItem, cStrVoxFiles.data(), static_cast<int>(cStrVoxFiles.size()));
 
 		ImGui::SliderFloat3(("Vox model size" + to_string(i)).c_str(), scene.scaleModel.cell, 0.0f, 1.0f);
 
@@ -1325,96 +1329,112 @@ void Renderer::HandleImguiVoxelVolumes()
 		{
 			ResetAccumulator();
 		}
-		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), scene.cube.b[0].cell, -10.0f, 10.0f);
-
+		float3 pos = scene.cube.b[0];
+		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), pos.cell, -10.0f, 10.0f, "%.0f");
 		if (ImGui::IsItemEdited())
-
 		{
+			// Round the values to the nearest whole number
+			pos.cell[0] = round(pos.cell[0]);
+			pos.cell[1] = round(pos.cell[1]);
+			pos.cell[2] = round(pos.cell[2]);
+
+			scene.SetCubeBoundaries(pos);
 			ResetAccumulator();
 		}
-		ImGui::SliderFloat3(("Vox size" + to_string(i)).c_str(), scene.cube.b[1].cell, -10.0f, 10.0f);
-
-		if (ImGui::IsItemEdited())
-
-		{
-			ResetAccumulator();
-		}
 
 
-		if (ImGui::Button(("Load Vox File" + to_string(i)).c_str()) && selectedItem >= 0)
-
-		{
-			// Load the selected .vox file
-
-			const std::string path = "assets/" + voxFiles[selectedItem];
-
-			scene.LoadModel(*this, path.c_str());
-
-			ResetAccumulator();
-		}
 		i++;
+	}
+	if (ImGui::Button("Create new Voxel Volume"))
+	{
+		AddVoxelVolume();
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Delete last Voxel Volume"))
+	{
+		RemoveVoxelVolume();
+		ResetAccumulator();
 	}
 }
 
 void Renderer::UI()
 
 {
+	//formatted with chatGPT
 	// ImGui begin
 	if (!ImGui::Begin("Debug Window"))
 	{
 		ImGui::End();
 		return;
 	}
-	// ray query on mouse
 
-	/*Ray r = camera.GetPrimaryRay((float)mousePos.x, (float)mousePos.y);
-
-	*this.FindNearest(r);
-
-	ImGui::Text("voxel: %i", r.voxel);*/
-
-
-	ImGui::BeginChild("Scrolling");
-
-	if (ImGui::CollapsingHeader("Lights"))
-
-	{
-		HandleImguiAreaLights();
-
-
-		HandleImguiPointLights();
-
-
-		HandleImguiSpotLights();
-
-
-		HandleImguiDirectionalLight();
-	}
-
-	if (ImGui::CollapsingHeader("Materials"))
-
-	{
-		HandleImguiMaterials();
-	}
 	ImGui::BeginTabBar("##TabBar");
-	if (ImGui::BeginTabItem("Entities"))
 
+	// First tab for Lights
+	if (ImGui::BeginTabItem("Lights"))
 	{
-		HandleImguiSpheres();
+		ImGui::BeginChild("Scrolling");
 
-		HandleImguiTriangles();
-		HandleImguiVoxelVolumes();
+		if (ImGui::CollapsingHeader("Area Lights"))
+		{
+			HandleImguiAreaLights();
+		}
+
+		if (ImGui::CollapsingHeader("Point Lights"))
+		{
+			HandleImguiPointLights();
+		}
+
+		if (ImGui::CollapsingHeader("Spot Lights"))
+		{
+			HandleImguiSpotLights();
+		}
+
+		if (ImGui::CollapsingHeader("Directional Light"))
+		{
+			HandleImguiDirectionalLight();
+		}
+
+		ImGui::EndChild();
 		ImGui::EndTabItem();
 	}
 
-	ImGui::BeginChild("General");
+	// Second tab for Materials
+	if (ImGui::BeginTabItem("Materials"))
+	{
+		ImGui::BeginChild("Scrolling");
+
+		HandleImguiMaterials();
+
+		ImGui::EndChild();
+		ImGui::EndTabItem();
+	}
+
+	// Third tab for Entities
+	if (ImGui::BeginTabItem("Entities"))
+	{
+		ImGui::BeginChild("Scrolling");
+
+		HandleImguiSpheres();
+
+		HandleImguiTriangles();
+
+		HandleImguiVoxelVolumes();
+
+		ImGui::EndChild();
+		ImGui::EndTabItem();
+	}
 
 
-	HandleImguiCamera();
+	if (ImGui::BeginTabItem("Camera"))
+	{
+		ImGui::BeginChild("Scrolling");
 
+		HandleImguiCamera();
+		ImGui::EndChild();
+		ImGui::EndTabItem();
+	}
 
-	ImGui::EndChild();
-
-
+	ImGui::EndTabBar();
 	ImGui::End();
 }

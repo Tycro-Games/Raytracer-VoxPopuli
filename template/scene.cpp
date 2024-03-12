@@ -25,7 +25,8 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 float3 Ray::GetNormalVoxel() const
 {
 	// return the voxel normal at the nearest intersection
-	const float3 I1 = (O + t * D) * WORLDSIZE; // our mainScene size is (1,1,1), so this scales each voxel to (1,1,1)
+	const float3 I1 = (O + t * D) * WORLDSIZE;
+	// our mainScene size is (1,1,1), so this scales each voxel to (1,1,1)
 	const float3 fG = fracf(I1);
 	const float3 d = min3(fG, 1.0f - fG);
 	const float mind = min(min(d.x, d.y), d.z);
@@ -73,15 +74,9 @@ float Ray::GetRoughness(const Renderer& scene) const
 }
 
 
-Cube::Cube(const float3 pos, const float3 size)
-{
-	// set cube bounds
-	b[0] = pos;
-	b[1] = pos + size;
-}
-
 float Cube::Intersect(const Ray& ray) const
 {
+	//rewritten by chatgpt
 	// Determine the signs of ray direction components
 	const int signx = ray.D.x < 0;
 	const int signy = ray.D.y < 0;
@@ -123,6 +118,12 @@ bool Cube::Contains(const float3& pos) const
 	// test if pos is inside the cube
 	return pos.x >= b[0].x && pos.y >= b[0].y && pos.z >= b[0].z &&
 		pos.x <= b[1].x && pos.y <= b[1].y && pos.z <= b[1].z;
+}
+
+void Scene::SetCubeBoundaries(const float3& position)
+{
+	cube.b[0] = position;
+	cube.b[1] = position + float3(1);
 }
 
 void Scene::GenerateSomeNoise(float frequency = 0.03f)
@@ -188,25 +189,16 @@ void Scene::ResetGrid(MaterialType::MatType type)
 	std::fill(grid.begin(), grid.end(), type);
 }
 
-Scene::Scene(const float3& position, const float3& size)
+Scene::Scene(const float3& position)
 {
-	// the voxel world sits in a 1x1x1 cube
-	cube = Cube(position, size);
+	//sets the cube
+	SetCubeBoundaries(position);
 	ResetGrid(MaterialType::NON_METAL_BLUE);
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
 	GenerateSomeNoise();
 }
 
-Scene::Scene()
-{
-	// the voxel world sits in a 1x1x1 cube
-	cube = Cube(float3(0), float3(1));
-	ResetGrid();
-	// initialize the mainScene using Perlin noise, parallel over z
-	//LoadModel("assets/teapot.vox");
-	//GenerateSomeNoise();
-}
 
 // a helper function to load a magica voxel scene given a filename from https://github.com/jpaver/opengametools/blob/master/demo/demo_vox.cpp
 void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_read_flags)
@@ -317,6 +309,7 @@ void Scene::Set(const uint x, const uint y, const uint z, const MaterialType::Ma
 	grid[GetVoxel(x, y, z)] = v;
 }
 
+//This changes to any position now
 bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
 {
 	// if ray is not inside the world: advance until it is
@@ -327,19 +320,18 @@ bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
 		if (state.t > 1e33f) return false;
 		// ray misses voxel data entirely
 	}
-	// setup amanatides & woo - assume world is 1x1x1, from (0,0,0) to (1,1,1)
-	//TODO change this to any position
-	const float3 voxelPosition = cube.b[0];
-	const float3 voxelSize = cube.b[1] - cube.b[0];
+	//expressed in world space
+	const float3 voxelMinBounds = cube.b[0];
+	const float3 voxelMaxBounds = cube.b[1] - cube.b[0];
 	static constexpr float cellSize = 1.0f / GRIDSIZE;
 	state.step = make_int3(1 - ray.Dsign * 2);
-
-	const float3 posInGrid = GRIDSIZE * ((ray.O - voxelPosition) + (state.t + 0.00005f) * ray.D) / voxelSize;
+	//based on our cube position
+	const float3 posInGrid = GRIDSIZE * ((ray.O - voxelMinBounds) + (state.t + 0.00005f) * ray.D) / voxelMaxBounds;
 	const float3 gridPlanes = (ceilf(posInGrid) - ray.Dsign) * cellSize;
 	const int3 P = clamp(make_int3(posInGrid), 0, GRIDSIZE - 1);
 	state.X = P.x, state.Y = P.y, state.Z = P.z;
 	state.tdelta = cellSize * float3(state.step) * ray.rD;
-	state.tmax = ((gridPlanes * voxelSize) - (ray.O - voxelPosition)) * ray.rD;
+	state.tmax = ((gridPlanes * voxelMaxBounds) - (ray.O - voxelMinBounds)) * ray.rD;
 	// proceed with traversal
 
 	return true;
@@ -463,6 +455,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 	// - This code can be ported to GPU.
 	return false;
 }
+
 
 bool Scene::IsOccluded(const Ray& ray) const
 {

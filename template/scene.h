@@ -8,7 +8,7 @@ namespace Tmpl8
 // high level settings
 // #define TWOLEVEL
 //#define USE_MORTON 
-constexpr auto WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
+constexpr uint32_t WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
 // #define USE_SIMD
 // #define USE_FMA3
 // #define SKYDOME
@@ -109,7 +109,6 @@ namespace Tmpl8
 	{
 	public:
 		Cube() = default;
-		Cube(const float3 pos, const float3 size);
 		float Intersect(const Ray& ray) const;
 		bool Contains(const float3& pos) const;
 		float3 b[2];
@@ -129,11 +128,13 @@ namespace Tmpl8
 			float dummy2 = 0; // 16 bytes, 64 bytes in total
 		};
 
+		//Assumes size of 1
+		void SetCubeBoundaries(const float3& position);
+
 		void GenerateSomeNoise(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
-		Scene(const float3& position, const float3& size);
-		Scene();
+		Scene(const float3& position);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
@@ -145,6 +146,7 @@ namespace Tmpl8
 			return _pdep_u64((uint64_t)x, BMI_3D_X_MASK) | _pdep_u64((uint64_t)y, BMI_3D_Y_MASK) |
 				_pdep_u64((uint64_t)z, BMI_3D_Z_MASK);
 		}
+
 
 		inline uint64_t GetVoxel(const uint32_t x, const uint32_t y, const uint32_t z) const
 		{

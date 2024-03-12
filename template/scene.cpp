@@ -22,10 +22,10 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 }
 
 
-float3 Ray::GetNormalVoxel() const
+float3 Ray::GetNormalVoxel(const uint32_t worldSize) const
 {
 	// return the voxel normal at the nearest intersection
-	const float3 I1 = (O + t * D) * WORLDSIZE;
+	const float3 I1 = (O + t * D) * static_cast<float>(worldSize);
 	// our mainScene size is (1,1,1), so this scales each voxel to (1,1,1)
 	const float3 fG = fracf(I1);
 	const float3 d = min3(fG, 1.0f - fG);
@@ -139,11 +139,11 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 	fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
 
 
-	for (int z = 0; z < WORLDSIZE; z++)
+	for (uint32_t z = 0; z < WORLDSIZE; z++)
 	{
-		for (int y = 0; y < WORLDSIZE; y++)
+		for (uint32_t y = 0; y < WORLDSIZE; y++)
 		{
-			for (int x = 0; x < WORLDSIZE; x++)
+			for (uint32_t x = 0; x < WORLDSIZE; x++)
 			{
 				const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
 				// Sample noise from pre-generated vector
@@ -189,14 +189,19 @@ void Scene::ResetGrid(MaterialType::MatType type)
 	std::fill(grid.begin(), grid.end(), type);
 }
 
-Scene::Scene(const float3& position)
+Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
+                                                                 GRIDSIZE2(worldSize * worldSize),
+                                                                 GRIDSIZE3(worldSize * worldSize * worldSize)
+
 {
 	//sets the cube
+	grid.resize(GRIDSIZE3);
 	SetCubeBoundaries(position);
 	ResetGrid(MaterialType::NON_METAL_BLUE);
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	GenerateSomeNoise();
+	if (worldSize > 1)
+		GenerateSomeNoise();
 }
 
 
@@ -231,7 +236,14 @@ void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_r
 	//created using chatgpt promts
 	// Assign colors based on the loaded scene
 	// Define scaling factors for each dimension
-
+	if (scene->size_x > GRIDSIZE)
+	{
+		// Modify scaleModel variables based on the comparison
+		scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
+		scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
+		scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+	}
+	//do stuff
 	for (uint32_t z = 0; z < scene->size_z; ++z)
 	{
 		for (uint32_t y = 0; y < scene->size_y; ++y)
@@ -282,7 +294,7 @@ void Scene::CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissive
 	//based on Lynn's implementation
 	// When looping over (x, y, z) during scene creation
 
-	constexpr float worldCenter{(WORLDSIZE / 2.0f)};
+	const float worldCenter{(static_cast<float>(WORLDSIZE) / 2.0f)};
 
 	for (uint32_t z = 0; z < WORLDSIZE; ++z)
 	{
@@ -323,10 +335,12 @@ bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
 	//expressed in world space
 	const float3 voxelMinBounds = cube.b[0];
 	const float3 voxelMaxBounds = cube.b[1] - cube.b[0];
-	static constexpr float cellSize = 1.0f / GRIDSIZE;
+	const auto gridsizeFloat = static_cast<float>(GRIDSIZE);
+	const float cellSize = 1.0f / gridsizeFloat;
 	state.step = make_int3(1 - ray.Dsign * 2);
 	//based on our cube position
-	const float3 posInGrid = GRIDSIZE * ((ray.O - voxelMinBounds) + (state.t + 0.00005f) * ray.D) / voxelMaxBounds;
+	const float3 posInGrid = gridsizeFloat * ((ray.O - voxelMinBounds) + (state.t + 0.00005f) * ray.D) /
+		voxelMaxBounds;
 	const float3 gridPlanes = (ceilf(posInGrid) - ray.Dsign) * cellSize;
 	const int3 P = clamp(make_int3(posInGrid), 0, GRIDSIZE - 1);
 	state.X = P.x, state.Y = P.y, state.Z = P.z;
@@ -350,7 +364,7 @@ void Scene::FindNearest(Ray& ray) const
 		if (cell != MaterialType::NONE && s.t < ray.t)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel();
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE);
 			ray.indexMaterial = cell;
 			break;
 		}
@@ -408,7 +422,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 		if (cell != matType)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel();
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE);
 			ray.indexMaterial = cell;
 			return true;
 		}

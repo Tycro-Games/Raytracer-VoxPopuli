@@ -8,7 +8,7 @@ namespace Tmpl8
 // high level settings
 // #define TWOLEVEL
 //#define USE_MORTON 
-constexpr uint32_t WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
+//constexpr uint32_t WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
 // #define USE_SIMD
 // #define USE_FMA3
 // #define SKYDOME
@@ -16,20 +16,20 @@ constexpr uint32_t WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x51
 // #define DOF
 
 // low-level / derived
-#define WORLDSIZE2	(WORLDSIZE*WORLDSIZE)
-#ifdef TWOLEVEL
-// feel free to replace with whatever suits your two-level implementation,
-// should you chose this challenge.
-#define BRICKSIZE	8
-#define BRICKSIZE2	(BRICKSIZE*BRICKSIZE)
-#define BRICKSIZE3	(BRICKSIZE*BRICKSIZE*BRICKSIZE)
-#define GRIDSIZE	(WORLDSIZE/BRICKSIZE)
-#define VOXELSIZE	(1.0f/WORLDSIZE)
-#else
-#define GRIDSIZE	WORLDSIZE
-#endif
-#define GRIDSIZE2	(GRIDSIZE*GRIDSIZE)
-#define GRIDSIZE3	(GRIDSIZE*GRIDSIZE*GRIDSIZE)
+//#define WORLDSIZE2	(WORLDSIZE*WORLDSIZE)
+//#ifdef TWOLEVEL
+//// feel free to replace with whatever suits your two-level implementation,
+//// should you chose this challenge.
+//#define BRICKSIZE	8
+//#define BRICKSIZE2	(BRICKSIZE*BRICKSIZE)
+//#define BRICKSIZE3	(BRICKSIZE*BRICKSIZE*BRICKSIZE)
+//#define GRIDSIZE	(WORLDSIZE/BRICKSIZE)
+//#define VOXELSIZE	(1.0f/WORLDSIZE)
+//#else
+//#define GRIDSIZE	WORLDSIZE
+//#endif
+//#define GRIDSIZE2	(GRIDSIZE*GRIDSIZE)
+//#define GRIDSIZE3	(GRIDSIZE*GRIDSIZE*GRIDSIZE)
 /* 3D coordinate to morton code. */
 constexpr uint64_t BMI_3D_X_MASK = 0x9249249249249249;
 constexpr uint64_t BMI_3D_Y_MASK = 0x2492492492492492;
@@ -73,7 +73,7 @@ namespace Tmpl8
 		//from Ray tracing in one weekend
 		static Ray GetRefractedRay(const Ray& ray, const float IORRatio, bool& isReflected);
 
-		float3 GetNormalVoxel() const;
+		float3 GetNormalVoxel(const uint32_t worldSize) const;
 		float3 UintToFloat3(uint col) const;
 		float3 GetAlbedo(const Renderer& scene) const;
 		float GetEmissive(const Renderer& scene) const;
@@ -134,7 +134,7 @@ namespace Tmpl8
 		void GenerateSomeNoise(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
-		Scene(const float3& position);
+		Scene(const float3& position, uint32_t worldSize = 128);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
@@ -159,8 +159,13 @@ namespace Tmpl8
 
 		bool IsOccluded(const Ray& ray) const;
 		void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);
+		const uint32_t WORLDSIZE; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
+		const uint32_t GRIDSIZE;
+		const uint32_t GRIDSIZE2;
+		const uint32_t GRIDSIZE3;
 
-		std::vector<MaterialType::MatType> grid{GRIDSIZE3};
+		/* 3D coordinate to morton code. */
+		std::vector<MaterialType::MatType> grid{};
 
 		float3 scaleModel{1.0f};
 		Cube cube;

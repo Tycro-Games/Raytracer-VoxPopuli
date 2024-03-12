@@ -355,6 +355,22 @@ void Renderer::ShapesSetUp()
 {
 	AddSphere();
 	AddVoxelVolume();
+	constexpr int sizeX = 6;
+	constexpr int sizeY = 1;
+	constexpr int sizeZ = 2;
+	array powersTwo = {1, 2, 4, 8, 16, 32, 64};
+	for (int i = 0; i < sizeX; i++)
+	{
+		for (int j = 0; j < sizeY; j++)
+		{
+			for (int k = 1; k < sizeZ; k++)
+			{
+				int index = (k + i + j) % powersTwo.size();
+				voxelVolumes.emplace_back(Scene({static_cast<float>(i), static_cast<float>(j), static_cast<float>(k)},
+				                                powersTwo[index]));
+			}
+		}
+	}
 }
 
 void Renderer::Init()
@@ -1287,7 +1303,8 @@ void Renderer::HandleImguiVoxelVolumes()
 
 			ResetAccumulator();
 		}
-		ImGui::SliderFloat(("radius volume sphere" + to_string(i)).c_str(), &radiusEmissiveSphere, 0.0f, WORLDSIZE);
+		ImGui::SliderFloat(("radius volume sphere" + to_string(i)).c_str(), &radiusEmissiveSphere, 0.0f,
+		                   static_cast<float>(scene.WORLDSIZE));
 
 		if (ImGui::IsItemEdited())
 

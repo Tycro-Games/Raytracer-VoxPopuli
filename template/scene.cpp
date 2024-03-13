@@ -120,10 +120,29 @@ bool Cube::Contains(const float3& pos) const
 		pos.x <= b[1].x && pos.y <= b[1].y && pos.z <= b[1].z;
 }
 
+
 void Scene::SetCubeBoundaries(const float3& position)
 {
 	cube.b[0] = position;
-	cube.b[1] = position + float3(1);
+	cube.b[1] = position + cube.scale;
+}
+
+void Scene::SetRotation(const float3& rot)
+{
+	cube.rotation = rot; // Store the rotation angles
+
+	// Calculate rotation matrix
+	mat4 rotationMatrix = mat4::RotateX(rot.x * DEG2RAD) * mat4::RotateY(rot.y * DEG2RAD) * mat4::RotateZ(
+		rot.z * DEG2RAD);
+
+	// Set inverse rotation matrix
+	cube.invMatrix = rotationMatrix.Inverted();
+}
+
+// Function to set scaling of the voxel cube
+void Scene::SetScale(const float3& scl)
+{
+	cube.scale = scl; // Store the scaling factors
 }
 
 void Scene::GenerateSomeNoise(float frequency = 0.03f)
@@ -322,8 +341,12 @@ void Scene::Set(const uint x, const uint y, const uint z, const MaterialType::Ma
 }
 
 //This changes to any position now
-bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
+bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 {
+	Ray backupRay = ray;
+	ray.O = TransformPosition(ray.O, cube.invMatrix);
+	ray.D = TransformVector(ray.D, cube.invMatrix);
+	ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 	// if ray is not inside the world: advance until it is
 	state.t = 0;
 	if (!cube.Contains(ray.O))
@@ -347,7 +370,8 @@ bool Scene::Setup3DDDA(const Ray& ray, DDAState& state) const
 	state.tdelta = cellSize * float3(state.step) * ray.rD;
 	state.tmax = ((gridPlanes * voxelMaxBounds) - (ray.O - voxelMinBounds)) * ray.rD;
 	// proceed with traversal
-
+	backupRay.t = ray.t;
+	ray = backupRay;
 	return true;
 }
 
@@ -471,7 +495,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 }
 
 
-bool Scene::IsOccluded(const Ray& ray) const
+bool Scene::IsOccluded(Ray& ray) const
 {
 	// setup Amanatides & Woo grid traversal
 	DDAState s;

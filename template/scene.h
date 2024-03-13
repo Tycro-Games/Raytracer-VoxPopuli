@@ -112,6 +112,15 @@ namespace Tmpl8
 		float Intersect(const Ray& ray) const;
 		bool Contains(const float3& pos) const;
 		float3 b[2];
+		float3 rotation;
+		float3 scale{1};
+		mat4 invMatrix;
+
+		void Grow(float3 p)
+		{
+			b[0] = fminf(b[0], p);
+			b[1] = fmaxf(b[1], p);
+		}
 	};
 
 	class Scene
@@ -128,8 +137,11 @@ namespace Tmpl8
 			float dummy2 = 0; // 16 bytes, 64 bytes in total
 		};
 
+		void ResetCubeBoundaries();
 		//Assumes size of 1
 		void SetCubeBoundaries(const float3& position);
+		void SetRotation(const float3& rot);
+		void SetScale(const float3& scl);
 
 		void GenerateSomeNoise(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
@@ -157,7 +169,7 @@ namespace Tmpl8
 #endif
 		}
 
-		bool IsOccluded(const Ray& ray) const;
+		bool IsOccluded(Ray& ray) const;
 		void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);
 		const uint32_t WORLDSIZE; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
 		const uint32_t GRIDSIZE;
@@ -171,6 +183,6 @@ namespace Tmpl8
 		Cube cube;
 
 	private:
-		bool Setup3DDDA(const Ray& ray, DDAState& state) const;
+		bool Setup3DDDA(Ray& ray, DDAState& state) const;
 	};
 }

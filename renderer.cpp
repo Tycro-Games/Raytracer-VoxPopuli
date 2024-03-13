@@ -252,7 +252,7 @@ float3 Renderer::DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& 
 	//material evaluation
 	const float3 k = ray.GetAlbedo(*this);
 
-	const Ray shadowRay(OffsetRay(intersectionPoint, normal), (dir));
+	Ray shadowRay(OffsetRay(intersectionPoint, normal), (dir));
 
 
 	for (auto& scene : voxelVolumes)
@@ -1347,15 +1347,31 @@ void Renderer::HandleImguiVoxelVolumes()
 			ResetAccumulator();
 		}
 		float3 pos = scene.cube.b[0];
+		float3 rot = scene.cube.rotation; // Rotation
+		float3 scale = scene.cube.scale; // Scale
+		bool update = false;
 		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), pos.cell, -10.0f, 10.0f, "%.0f");
 		if (ImGui::IsItemEdited())
+			update = true;
+		ImGui::SliderFloat3(("Rotation" + to_string(i)).c_str(), rot.cell, 0.0f, 360.0f, "%.0f degrees");
+		if (ImGui::IsItemEdited())
+			update = true;
+		ImGui::SliderFloat3(("Scale" + to_string(i)).c_str(), scale.cell, 0.1f, 2.0f, "%.1f");
+		if (ImGui::IsItemEdited())
+			update = true;
+		if (update)
 		{
 			// Round the values to the nearest whole number
 			pos.cell[0] = round(pos.cell[0]);
 			pos.cell[1] = round(pos.cell[1]);
 			pos.cell[2] = round(pos.cell[2]);
 
+			// Apply rotation and scaling
+			scene.cube.scale = scale;
+
 			scene.SetCubeBoundaries(pos);
+			scene.SetRotation(rot);
+
 			ResetAccumulator();
 		}
 

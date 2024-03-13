@@ -1353,7 +1353,7 @@ void Renderer::HandleImguiVoxelVolumes()
 		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), pos.cell, -10.0f, 10.0f, "%.0f");
 		if (ImGui::IsItemEdited())
 			update = true;
-		ImGui::SliderFloat3(("Rotation" + to_string(i)).c_str(), rot.cell, 0.0f, 360.0f, "%.0f degrees");
+		ImGui::SliderFloat3(("Rotation" + to_string(i)).c_str(), rot.cell, -180, 180, "%.0f degrees");
 		if (ImGui::IsItemEdited())
 			update = true;
 		ImGui::SliderFloat3(("Scale" + to_string(i)).c_str(), scale.cell, 0.1f, 2.0f, "%.1f");
@@ -1362,16 +1362,17 @@ void Renderer::HandleImguiVoxelVolumes()
 		if (update)
 		{
 			// Round the values to the nearest whole number
-			pos.cell[0] = round(pos.cell[0]);
+			/*pos.cell[0] = round(pos.cell[0]);
 			pos.cell[1] = round(pos.cell[1]);
-			pos.cell[2] = round(pos.cell[2]);
+			pos.cell[2] = round(pos.cell[2]);*/
 
 			// Apply rotation and scaling
 			scene.cube.scale = scale;
+			scene.cube.rotation = rot;
 
 			scene.SetCubeBoundaries(pos);
-			scene.SetRotation(rot);
-
+			rot *= DEG2RAD;
+			scene.SetTransform(rot);
 			ResetAccumulator();
 		}
 

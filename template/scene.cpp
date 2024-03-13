@@ -21,16 +21,27 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 	Dsign = (float3((float)x_sign * 2 - 1, (float)y_sign * 2 - 1, (float)z_sign * 2 - 1) + 1) * 0.5f;
 }
 
-
-float3 Ray::GetNormalVoxel(const uint32_t worldSize) const
+//added comments with chatGPT
+float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& invMatrix) const
 {
-	// return the voxel normal at the nearest intersection
-	const float3 I1 = (O + t * D) * static_cast<float>(worldSize);
-	// our mainScene size is (1,1,1), so this scales each voxel to (1,1,1)
+	float3 ori = TransformPosition(O, invMatrix);
+
+	float3 dir = TransformVector(D, invMatrix);
+
+	// Calculate the intersection point
+	const float3 I1 = (ori + t * normalize(dir)) * static_cast<float>(worldSize);
+
+	// Calculate fractional part of I1
 	const float3 fG = fracf(I1);
+
+	// Calculate distances to boundaries
 	const float3 d = min3(fG, 1.0f - fG);
 	const float mind = min(min(d.x, d.y), d.z);
+
+	// Calculate signs
 	const float3 sign = Dsign * 2 - 1;
+
+	// Determine the normal based on the minimum distance
 	return float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
 	// TODO:
 	// - *only* in case the profiler flags this as a bottleneck:
@@ -127,16 +138,17 @@ void Scene::SetCubeBoundaries(const float3& position)
 	cube.b[1] = position + cube.scale;
 }
 
-void Scene::SetRotation(const float3& rot)
+
+void Scene::SetTransform(const mat4& transform)
 {
-	cube.rotation = rot; // Store the rotation angles
-
-	// Calculate rotation matrix
-	mat4 rotationMatrix = mat4::RotateX(rot.x * DEG2RAD) * mat4::RotateY(rot.y * DEG2RAD) * mat4::RotateZ(
-		rot.z * DEG2RAD);
-
-	// Set inverse rotation matrix
-	cube.invMatrix = rotationMatrix.Inverted();
+	cube.invMatrix = transform.Inverted();
+	// calculate world-space bounds using the new matrix
+	float3 bmin = {cube.b[0]}, bmax = {cube.b[1]};
+	cube.b[0] = 1e30f;
+	cube.b[1] = -1e30f;
+	for (int i = 0; i < 8; i++)
+		cube.Grow(TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
+		                                   i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), transform));
 }
 
 // Function to set scaling of the voxel cube
@@ -206,6 +218,31 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 void Scene::ResetGrid(MaterialType::MatType type)
 {
 	std::fill(grid.begin(), grid.end(), type);
+}
+
+void Scene::SetTransform(float3& rotation)
+{
+	// Translate to the rotation center
+	float3 center = (cube.b[0] + cube.b[1]) * 0.5f;
+	mat4 translateToCenter = mat4::Translate(center);
+
+	// Translate back to the original position after rotation
+	mat4 translateBack = mat4::Translate(-center);
+
+	// Scale and rotation matrices
+	mat4 scale = mat4::Scale(cube.scale);
+	mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+
+	// Combine all transformations
+	cube.invMatrix = (translateToCenter * rot * translateBack * scale).Inverted();
+
+	float3 bmin = cube.b[0], bmax = cube.b[1];
+	cube.b[0] = 1e30f;
+	cube.b[1] = -1e30f;
+
+	for (int i = 0; i < 8; i++)
+		cube.Grow(TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
+		                                   i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), rot));
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -352,7 +389,12 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 	if (!cube.Contains(ray.O))
 	{
 		state.t = cube.Intersect(ray);
-		if (state.t > 1e33f) return false;
+		if (state.t > 1e33f)
+		{
+			backupRay.t = ray.t;
+			ray = backupRay;
+			return false;
+		}
 		// ray misses voxel data entirely
 	}
 	//expressed in world space
@@ -369,7 +411,7 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 	state.X = P.x, state.Y = P.y, state.Z = P.z;
 	state.tdelta = cellSize * float3(state.step) * ray.rD;
 	state.tmax = ((gridPlanes * voxelMaxBounds) - (ray.O - voxelMinBounds)) * ray.rD;
-	// proceed with traversal
+
 	backupRay.t = ray.t;
 	ray = backupRay;
 	return true;
@@ -377,10 +419,15 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 
 void Scene::FindNearest(Ray& ray) const
 {
+	//TODO maybe try to move this
+
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
-	if (!Setup3DDDA(ray, s)) return;
-	//TODO optimize by stopping early
+
+	if (!Setup3DDDA(ray, s))
+	{
+		return;
+	}
 	// start stepping
 	while (s.t < ray.t)
 	{
@@ -388,7 +435,7 @@ void Scene::FindNearest(Ray& ray) const
 		if (cell != MaterialType::NONE && s.t < ray.t)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.invMatrix);
 			ray.indexMaterial = cell;
 			break;
 		}
@@ -423,6 +470,7 @@ void Scene::FindNearest(Ray& ray) const
 			}
 		}
 	}
+
 	// TODO:
 	// - A nested grid will let rays skip empty space much faster.
 	// - Coherent rays can traverse the grid faster together.
@@ -433,10 +481,13 @@ void Scene::FindNearest(Ray& ray) const
 
 bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 {
+	//TODO maybe try to move this
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
 	if (!Setup3DDDA(ray, s))
 	{
+		// proceed with traversal
+
 		return false;
 	}
 	// start stepping
@@ -446,7 +497,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 		if (cell != matType)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.invMatrix);
 			ray.indexMaterial = cell;
 			return true;
 		}
@@ -483,6 +534,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 	}
 	ray.O = ray.O + ray.D * s.t;
 	ray.t = 0;
+
 	//ray.rayNormal = ray.GetNormalVoxel();
 
 	// TODO:

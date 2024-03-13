@@ -222,27 +222,32 @@ void Scene::ResetGrid(MaterialType::MatType type)
 
 void Scene::SetTransform(float3& rotation)
 {
-	// Translate to the rotation center
-	float3 center = (cube.b[0] + cube.b[1]) * 0.5f;
-	mat4 translateToCenter = mat4::Translate(center);
+	// Translate the object to the origin of its bounding box
+	mat4 translate = mat4::Translate(cube.b[0]);
 
-	// Translate back to the original position after rotation
-	mat4 translateBack = mat4::Translate(-center);
-
-	// Scale and rotation matrices
+	// Scale the object
 	mat4 scale = mat4::Scale(cube.scale);
+
+	// Rotate the object
 	mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
 
-	// Combine all transformations
-	cube.invMatrix = (translateToCenter * rot * translateBack * scale).Inverted();
+	// Calculate the inverse transformation matrix
+	cube.invMatrix = (translate * rot * scale).Inverted();
 
+	// Store the original bounding box bounds
 	float3 bmin = cube.b[0], bmax = cube.b[1];
+
+	// Set temporary extreme values for bounding box bounds
 	cube.b[0] = 1e30f;
 	cube.b[1] = -1e30f;
 
+	// Loop through each corner of the bounding box
 	for (int i = 0; i < 8; i++)
+	{
+		// Transform the corner position
 		cube.Grow(TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
 		                                   i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), rot));
+	}
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),

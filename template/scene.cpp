@@ -14,9 +14,9 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 	//if (std::isnan(rD.x) || isnan(rD.y) || isnan(rD.z))
 	//	std::cout << "NaN in rD.x" << std::endl;
 	//faster than reinterpret cast by about 1%
-	uint x_sign = (*(uint*)&D.x >> 31);
-	uint y_sign = (*(uint*)&D.y >> 31);
-	uint z_sign = (*(uint*)&D.z >> 31);
+	const uint x_sign = (*(uint*)&D.x >> 31);
+	const uint y_sign = (*(uint*)&D.y >> 31);
+	const uint z_sign = (*(uint*)&D.z >> 31);
 
 	Dsign = (float3((float)x_sign * 2 - 1, (float)y_sign * 2 - 1, (float)z_sign * 2 - 1) + 1) * 0.5f;
 }
@@ -24,9 +24,9 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 //added comments with chatGPT
 float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& invMatrix) const
 {
-	float3 ori = TransformPosition(O, invMatrix);
+	const float3 ori = TransformPosition(O, invMatrix);
 
-	float3 dir = TransformVector(D, invMatrix);
+	const float3 dir = TransformVector(D, invMatrix);
 
 	// Calculate the intersection point
 	const float3 I1 = (ori + t * normalize(dir)) * static_cast<float>(worldSize);
@@ -34,7 +34,7 @@ float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& invMatrix) cons
 	// Calculate fractional part of I1
 	const float3 fG = fracf(I1);
 
-	// Calculate distances to boundaries
+	// Calculate distances to boundaries											  W
 	const float3 d = min3(fG, 1.0f - fG);
 	const float mind = min(min(d.x, d.y), d.z);
 
@@ -42,7 +42,13 @@ float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& invMatrix) cons
 	const float3 sign = Dsign * 2 - 1;
 
 	// Determine the normal based on the minimum distance
-	return float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
+	float3 normal = float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
+
+	// Transform the normal from object space to world space
+	normal = TransformVector(normal, invMatrix.Inverted());
+
+
+	return normal;
 	// TODO:
 	// - *only* in case the profiler flags this as a bottleneck:
 	// - This function might benefit from SIMD.
@@ -97,8 +103,8 @@ float Cube::Intersect(const Ray& ray) const
 	float tmin_x = (b[signx].x - ray.O.x) * ray.rD.x;
 	float tmax_x = (b[1 - signx].x - ray.O.x) * ray.rD.x;
 
-	float tmin_y = (b[signy].y - ray.O.y) * ray.rD.y;
-	float tmax_y = (b[1 - signy].y - ray.O.y) * ray.rD.y;
+	const float tmin_y = (b[signy].y - ray.O.y) * ray.rD.y;
+	const float tmax_y = (b[1 - signy].y - ray.O.y) * ray.rD.y;
 
 	// Check for intersection with Y faces
 	if (tmin_x > tmax_y || tmin_y > tmax_x)
@@ -108,8 +114,8 @@ float Cube::Intersect(const Ray& ray) const
 	tmin_x = std::max(tmin_x, tmin_y);
 	tmax_x = std::min(tmax_x, tmax_y);
 
-	float tmin_z = (b[signz].z - ray.O.z) * ray.rD.z;
-	float tmax_z = (b[1 - signz].z - ray.O.z) * ray.rD.z;
+	const float tmin_z = (b[signz].z - ray.O.z) * ray.rD.z;
+	const float tmax_z = (b[1 - signz].z - ray.O.z) * ray.rD.z;
 
 	// Check for intersection with Z faces
 	if (tmin_x > tmax_z || tmin_z > tmax_x)
@@ -222,32 +228,37 @@ void Scene::ResetGrid(MaterialType::MatType type)
 
 void Scene::SetTransform(float3& rotation)
 {
-	// Translate the object to the origin of its bounding box
-	mat4 translate = mat4::Translate(cube.b[0]);
+	//as Max (230184) explained how I could rotate around a pivot
+
+	// Translate the object to the pivot point (center of the cube)
+	const mat4 translateToPivot = mat4::Translate((cube.b[0] + cube.b[1]) * 0.5f);
+
+	// Translate back to the original position after rotation
+	const mat4 translateBack = mat4::Translate(-((cube.b[0] + cube.b[1]) * 0.5f));
 
 	// Scale the object
-	mat4 scale = mat4::Scale(cube.scale);
+	const mat4 scale = mat4::Scale(cube.scale);
 
-	// Rotate the object
-	mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+	// Rotate the object around the pivot point
+	const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
 
 	// Calculate the inverse transformation matrix
-	cube.invMatrix = (translate * rot * scale).Inverted();
+	cube.invMatrix = (translateToPivot * rot * translateBack * scale).Inverted();
 
 	// Store the original bounding box bounds
-	float3 bmin = cube.b[0], bmax = cube.b[1];
+	//float3 bmin = cube.b[0], bmax = cube.b[1];
 
-	// Set temporary extreme values for bounding box bounds
-	cube.b[0] = 1e30f;
-	cube.b[1] = -1e30f;
+	//// Set temporary extreme values for bounding box bounds
+	//cube.b[0] = 1e30f;
+	//cube.b[1] = -1e30f;
 
-	// Loop through each corner of the bounding box
-	for (int i = 0; i < 8; i++)
-	{
-		// Transform the corner position
-		cube.Grow(TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
-		                                   i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), rot));
-	}
+	//// Loop through each corner of the bounding box
+	//for (int i = 0; i < 8; i++)
+	//{
+	//	// Transform the corner position
+	//	cube.Grow(TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
+	//	                                   i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), rot));
+	//}
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),

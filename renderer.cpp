@@ -415,7 +415,7 @@ void Renderer::Init()
 void Renderer::Illumination(Ray& ray, float3& incLight)
 {
 	const size_t randLightIndex = static_cast<size_t>(Rand(LIGHT_COUNT));
-
+	//map every index to a certain light element				
 	if (randLightIndex < POINT_LIGHTS)
 	{
 		const auto p = (randLightIndex);

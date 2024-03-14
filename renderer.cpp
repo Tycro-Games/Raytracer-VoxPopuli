@@ -357,14 +357,14 @@ void Renderer::ShapesSetUp()
 	constexpr int sizeX = 6;
 	constexpr int sizeY = 1;
 	constexpr int sizeZ = 2;
-	array powersTwo = {1, 2, 4, 8, 16, 32, 64};
+	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
 	for (int i = 0; i < sizeX; i++)
 	{
 		for (int j = 0; j < sizeY; j++)
 		{
 			for (int k = 1; k < sizeZ; k++)
 			{
-				int index = (k + i + j) % powersTwo.size();
+				const int index = (k + i + j) % powersTwo.size();
 				voxelVolumes.emplace_back(Scene({static_cast<float>(i), static_cast<float>(j), static_cast<float>(k)},
 				                                powersTwo[index]));
 			}
@@ -414,37 +414,32 @@ void Renderer::Init()
 
 void Renderer::Illumination(Ray& ray, float3& incLight)
 {
-	//random light type
-	const auto lightType = static_cast<size_t>(round(Rand(MAX_LIGHT_TYPES - 1)));
-	//random index of the element inside a light type array
-	const auto p = static_cast<size_t>(round(Rand(POINT_LIGHTS - 1)));
-	const auto s = static_cast<size_t>(round(Rand(SPOT_LIGHTS - 1)));
-	const auto a = static_cast<size_t>(round(Rand(AREA_LIGHTS - 1)));
-	//needs to be there to even out the odds
-	//const auto d = static_cast<size_t>(Rand(AREA_LIGHTS));
-	//choose only one random light
-	switch (lightType)
-	{
-	case 0:
-		//every method evaluates to the light
-		incLight = PointLightEvaluate(ray, pointLights[p].data); //2
-		break;
-	case 1:
-		incLight = AreaLightEvaluation(ray, areaLights[a].data); //2
-		break;
-	case 2:
-		incLight = SpotLightEvaluate(ray, spotLights[s].data); //2
-		break;
-	case 3:
-		//if (d == 0)
-		incLight = DirectionalLightEvaluate(ray, dirLight.data); //1
+	const size_t randLightIndex = static_cast<size_t>(Rand(LIGHT_COUNT));
 
-		break;
-	default: break;
+	if (randLightIndex < POINT_LIGHTS)
+	{
+		const auto p = (randLightIndex);
+		incLight = PointLightEvaluate(ray, pointLights[p].data);
 	}
-	//multiply by the probability of choosing a light
+	else if (randLightIndex < AREA_LIGHTS + POINT_LIGHTS)
+	{
+		const auto a = randLightIndex - POINT_LIGHTS;
+		incLight = AreaLightEvaluation(ray, areaLights[a].data);
+	}
+	else if (randLightIndex < AREA_LIGHTS + SPOT_LIGHTS + POINT_LIGHTS)
+	{
+		const auto s = randLightIndex - SPOT_LIGHTS - POINT_LIGHTS;
+		incLight = SpotLightEvaluate(ray, spotLights[s].data);
+	}
+	//1 is the only directional
+	else
+	{
+		incLight = DirectionalLightEvaluate(ray, dirLight.data);
+	}
+
 	incLight *= LIGHT_COUNT;
 }
+
 
 float3 Renderer::Reflect(const float3 direction, const float3 normal)
 {

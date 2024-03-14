@@ -110,7 +110,7 @@ namespace Tmpl8
 		Camera prevCamera;
 		float frqGenerationPerlinNoise = .03f;
 		float HDRLightContribution = 1.5f;
-		float antiAliasingStrength = 0.0f;
+		float antiAliasingStrength = 1.0f;
 		float radiusEmissiveSphere = 1.0f;
 		float colorThreshold = .1f;
 		//materials

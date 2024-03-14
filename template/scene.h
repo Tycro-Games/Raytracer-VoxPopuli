@@ -63,6 +63,7 @@ namespace Tmpl8
 	public:
 		Ray() = default;
 
+		float3 ComputeDsign(const float3& _D) const;
 		Ray(const float3 origin, const float3 direction, const float rayLength = 1e34f, const int = 0);
 
 		float3 IntersectionPoint() const

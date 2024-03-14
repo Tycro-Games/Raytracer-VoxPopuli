@@ -96,14 +96,14 @@ float3 Renderer::PointLightEvaluate(Ray& ray, const PointLightData& lightData)
 	const float3 dir = lightData.position - intersectionPoint;
 	const float dst = length(dir);
 
-	//reciprocal is faster than division
-	const float3 dirNormalized = dir * (1 / dst);
+
+	const float3 dirNormalized = dir * (1.0f / dst);
 
 	const float3 normal = ray.rayNormal;
 	//Having a negative dot product means the light is behind the point
 	const float cosTheta = dot(dirNormalized, normal);
-	if (cosTheta <= 0)
-		return 0;
+	if (cosTheta <= 0.0f)
+		return {0.0f};
 	//the  formula for distance attenuation 
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color * (1.0f / (dst * dst));
 	//materi
@@ -114,7 +114,7 @@ float3 Renderer::PointLightEvaluate(Ray& ray, const PointLightData& lightData)
 	// we do not shoot the ray behind the light source
 	shadowRay.t = dst;
 	if (IsOccluded(shadowRay))
-		return 0;
+		return {0.0f};
 
 
 	return lightIntensity * k;
@@ -255,9 +255,8 @@ float3 Renderer::DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& 
 	Ray shadowRay(OffsetRay(intersectionPoint, normal), (dir));
 
 
-	for (auto& scene : voxelVolumes)
-		if (scene.IsOccluded(shadowRay))
-			return 0;
+	if (IsOccluded(shadowRay))
+		return {0};
 
 	return lightIntensity * k;
 }
@@ -416,26 +415,30 @@ void Renderer::Init()
 void Renderer::Illumination(Ray& ray, float3& incLight)
 {
 	//random light type
-	const auto lightType = static_cast<size_t>(Rand(MAX_LIGHT_TYPES - 1));
+	const auto lightType = static_cast<size_t>(round(Rand(MAX_LIGHT_TYPES - 1)));
 	//random index of the element inside a light type array
-	const auto p = static_cast<size_t>(Rand(POINT_LIGHTS));
-	const auto s = static_cast<size_t>(Rand(SPOT_LIGHTS));
-	const auto a = static_cast<size_t>(Rand(AREA_LIGHTS));
+	const auto p = static_cast<size_t>(round(Rand(POINT_LIGHTS - 1)));
+	const auto s = static_cast<size_t>(round(Rand(SPOT_LIGHTS - 1)));
+	const auto a = static_cast<size_t>(round(Rand(AREA_LIGHTS - 1)));
+	//needs to be there to even out the odds
+	//const auto d = static_cast<size_t>(Rand(AREA_LIGHTS));
 	//choose only one random light
 	switch (lightType)
 	{
 	case 0:
 		//every method evaluates to the light
-		incLight = PointLightEvaluate(ray, pointLights[p].data);
+		incLight = PointLightEvaluate(ray, pointLights[p].data); //2
 		break;
 	case 1:
-		incLight = AreaLightEvaluation(ray, areaLights[a].data);
+		incLight = AreaLightEvaluation(ray, areaLights[a].data); //2
 		break;
 	case 2:
-		incLight = SpotLightEvaluate(ray, spotLights[s].data);
+		incLight = SpotLightEvaluate(ray, spotLights[s].data); //2
 		break;
 	case 3:
-		incLight = DirectionalLightEvaluate(ray, dirLight.data);
+		//if (d == 0)
+		incLight = DirectionalLightEvaluate(ray, dirLight.data); //1
+
 		break;
 	default: break;
 	}
@@ -496,9 +499,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	}
 	//Find nearest BVH
 
-#pragma region FindNearest
+
 	FindNearest(ray);
-#pragma endregion
 
 
 	//evaluate materials and trace again for reflections and refraction
@@ -528,7 +530,6 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			};
 			return Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
 		}
-
 	//non-metal
 
 	case MaterialType::NON_METAL_WHITE:
@@ -541,7 +542,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			if (RandomFloat() > SchlickReflectanceNonMetal(dot(-ray.D, ray.rayNormal)))
 			{
 				float3 incLight{0};
-				float3 randomDirection = DiffuseReflection(ray.rayNormal);
+				float3 randomDirection = RandomLambertianReflectionVector(ray.rayNormal);
 				Illumination(ray, incLight);
 				newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
 				color += incLight;
@@ -561,7 +562,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	//mostly based on Ray tracing in one weekend
 	case MaterialType::GLASS:
 		{
-			float3 color{1};
+			float3 color{1.0f};
 			//code for glass
 			bool isInGlass = ray.isInsideGlass;
 			float IORMaterial = ray.GetRefractivity(*this); //1.45
@@ -610,8 +611,6 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::EMISSIVE:
 		return ray.GetAlbedo(*this) * ray.GetEmissive(*this);
 
-	case MaterialType::NONE:
-		return skyDome.SampleSky(ray.D);
 	//random materials from the models
 	default:
 		float3 incLight{0};
@@ -700,7 +699,7 @@ void Renderer::Update()
 
 
 				         /*         if (staticCamera)
-					                  weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
+							          weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
 				         //weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
 				         const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
 				                                                1.0f - weight);
@@ -720,7 +719,7 @@ void Renderer::Update()
 			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		         }
 #ifdef PROFILE
-	}
+		}
 #else
 	         });
 #endif
@@ -1001,13 +1000,6 @@ void Renderer::HandleImguiDirectionalLight()
 void Renderer::HandleImguiCamera()
 
 {
-	ImGui::SliderFloat("Perlin frq", &frqGenerationPerlinNoise, 0.001f, .5f);
-
-	if (ImGui::IsItemEdited())
-
-	{
-		ResetAccumulator();
-	}
 	ImGui::SliderFloat("Accumulation weight", &weight, 0.001f, 1.0f);
 
 	if (ImGui::IsItemEdited())
@@ -1287,15 +1279,9 @@ void Renderer::HandleImguiVoxelVolumes()
 	{
 		cStrVoxFiles.push_back(file.c_str());
 	}
+
 	for (auto& scene : voxelVolumes)
 	{
-		if (ImGui::Button(("Generate new Perlin noise" + to_string(i)).c_str()))
-
-		{
-			scene.GenerateSomeNoise(frqGenerationPerlinNoise);
-
-			ResetAccumulator();
-		}
 		if (ImGui::Button(("Generate new Sphere emissive" + to_string(i)).c_str()))
 
 		{
@@ -1310,6 +1296,14 @@ void Renderer::HandleImguiVoxelVolumes()
 
 		{
 			scene.CreateEmmisiveSphere(static_cast<MaterialType::MatType>(matTypeSphere), radiusEmissiveSphere);
+			ResetAccumulator();
+		}
+		ImGui::SliderFloat(("Perlin frq" + to_string(i)).c_str(), &frqGenerationPerlinNoise, 0.001f, .5f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			scene.GenerateSomeNoise(frqGenerationPerlinNoise);
 			ResetAccumulator();
 		}
 		std::vector<const char*> cStr; // ImGui needs const char* array
@@ -1350,7 +1344,7 @@ void Renderer::HandleImguiVoxelVolumes()
 		float3 rot = scene.cube.rotation; // Rotation
 		float3 scale = scene.cube.scale; // Scale
 		bool update = false;
-		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), pos.cell, -10.0f, 10.0f, "%.0f");
+		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), pos.cell, -10.0f, 10.0f, "%.1f");
 		if (ImGui::IsItemEdited())
 			update = true;
 		ImGui::SliderFloat3(("Rotation" + to_string(i)).c_str(), rot.cell, -180, 180, "%.0f degrees");
@@ -1361,11 +1355,6 @@ void Renderer::HandleImguiVoxelVolumes()
 			update = true;
 		if (update)
 		{
-			// Round the values to the nearest whole number
-			/*pos.cell[0] = round(pos.cell[0]);
-			pos.cell[1] = round(pos.cell[1]);
-			pos.cell[2] = round(pos.cell[2]);*/
-
 			// Apply rotation and scaling
 			scene.cube.scale = scale;
 			scene.cube.rotation = rot;
@@ -1409,25 +1398,18 @@ void Renderer::UI()
 	{
 		ImGui::BeginChild("Scrolling");
 
-		if (ImGui::CollapsingHeader("Area Lights"))
-		{
-			HandleImguiAreaLights();
-		}
 
-		if (ImGui::CollapsingHeader("Point Lights"))
-		{
-			HandleImguiPointLights();
-		}
+		HandleImguiAreaLights();
 
-		if (ImGui::CollapsingHeader("Spot Lights"))
-		{
-			HandleImguiSpotLights();
-		}
 
-		if (ImGui::CollapsingHeader("Directional Light"))
-		{
-			HandleImguiDirectionalLight();
-		}
+		HandleImguiPointLights();
+
+
+		HandleImguiSpotLights();
+
+
+		HandleImguiDirectionalLight();
+
 
 		ImGui::EndChild();
 		ImGui::EndTabItem();

@@ -199,8 +199,23 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightD
 bool Renderer::IsOccluded(Ray& ray) const
 {
 	for (auto& scene : voxelVolumes)
+	{
+		Ray backupRay = ray;
+		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
+
+		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
+
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+
 		if (scene.IsOccluded(ray))
+		{
+			backupRay.t = ray.t;
+			backupRay.CopyToPrevRay(ray);
 			return true;
+		}
+		backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);
+	}
 
 
 	for (auto& sphere : spheres)
@@ -348,6 +363,8 @@ void Renderer::RemoveVoxelVolume()
 void Renderer::AddVoxelVolume()
 {
 	voxelVolumes.emplace_back(Scene({0}));
+	float3 rot = float3{15};
+	voxelVolumes[0].SetTransform(rot);
 }
 
 void Renderer::ShapesSetUp()
@@ -458,7 +475,18 @@ float3 Renderer::Refract(const float3 direction, const float3 normal, const floa
 void Renderer::FindNearest(Ray& ray)
 {
 	for (auto& scene : voxelVolumes)
+
+	{
+		Ray backupRay = ray;
+		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
+
+		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
+
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 		scene.FindNearest(ray);
+		backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);
+	}
 
 	//get the nearest t
 	{

@@ -61,6 +61,7 @@ namespace Tmpl8
 	class Ray
 	{
 	public:
+		void CopyToPrevRay(Ray& ray);
 		Ray() = default;
 
 		float3 ComputeDsign(const float3& _D) const;
@@ -74,7 +75,7 @@ namespace Tmpl8
 		//from Ray tracing in one weekend
 		static Ray GetRefractedRay(const Ray& ray, const float IORRatio, bool& isReflected);
 
-		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& invMatrix) const;
+		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const;
 		float3 UintToFloat3(uint col) const;
 		float3 GetAlbedo(const Renderer& scene) const;
 		float GetEmissive(const Renderer& scene) const;
@@ -113,9 +114,10 @@ namespace Tmpl8
 		float Intersect(const Ray& ray) const;
 		bool Contains(const float3& pos) const;
 		float3 b[2];
-		float3 rotation;
+		float3 rotation{0};
 		float3 scale{1};
 		mat4 invMatrix;
+		mat4 matrix;
 
 		void Grow(float3 p)
 		{

@@ -200,21 +200,10 @@ bool Renderer::IsOccluded(Ray& ray) const
 {
 	for (auto& scene : voxelVolumes)
 	{
-		Ray backupRay = ray;
-		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
-
-		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
-
-		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
-
 		if (scene.IsOccluded(ray))
 		{
-			backupRay.t = ray.t;
-			backupRay.CopyToPrevRay(ray);
 			return true;
 		}
-		backupRay.t = ray.t;
-		backupRay.CopyToPrevRay(ray);
 	}
 
 
@@ -477,15 +466,7 @@ void Renderer::FindNearest(Ray& ray)
 	for (auto& scene : voxelVolumes)
 
 	{
-		Ray backupRay = ray;
-		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
-
-		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
-
-		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 		scene.FindNearest(ray);
-		backupRay.t = ray.t;
-		backupRay.CopyToPrevRay(ray);
 	}
 
 	//get the nearest t

@@ -11,7 +11,6 @@ void Ray::CopyToPrevRay(Ray& ray)
 	ray.D = D;
 	ray.rD = rD;
 	ray.Dsign = Dsign;
-	ray.t = t;
 }
 
 float3 Ray::ComputeDsign(const float3& _D) const
@@ -36,10 +35,37 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 	Dsign = ComputeDsign(D);
 }
 
+//Sven does it so, but it is still broken
+//float3 Ray::GetNormal() const {
+//#if SPHERES
+//	//return the normal of the sphere at the nearest intersection
+//	return N;
+//#else
+//	float3 intersectionPoint = O + t * D;
+//	// Transform the intersection point into object space
+//	intersectionPoint = invWorldTransform.TransformPoint(intersectionPoint);
+//
+//	// Calculate the normal in object space with the original method
+//	const float3 I1 = intersectionPoint * WORLDSIZE;
+//	const float3 fG = fracf(I1);
+//	const float3 d = min3(fG, 1.0f - fG);
+//	const float mind = min(min(d.x, d.y), d.z);
+//	const float3 sign = Dsign * 2 - 1;
+//	float3 normal = float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
+//
+//	// Transform the normal using the original sub-object transform without translation (for normals, w = 0)
+//	normal = worldTransform.TransformVector(normal);
+//
+//	// Normalize the transformed normal to address potential scaling/shearing issues
+//	return normalize(normal);
+//#endif
+//}
 //added comments with chatGPT
-float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const
+float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& invMatrix) const
 {
-	const float3 intersectionPoint = IntersectionPoint();
+	mat4 intersectedMatrix = invMatrix;
+
+	const float3 intersectionPoint = TransformPosition(IntersectionPoint(), intersectedMatrix);
 	// Calculate the intersection point
 	const float3 I1 = (intersectionPoint * static_cast<float>(worldSize));
 
@@ -55,13 +81,10 @@ float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const
 
 	// Determine the normal based on the minimum distance
 	float3 normal = float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
-	mat4 normalTransform = matrix;
-	//Set w to 0 so it cancels translation
-	normalTransform.cell[12] = 0.0f;
-	normalTransform.cell[13] = 0.0f;
-	normalTransform.cell[14] = 0.0f;
+	mat4 normalMatrix = matrix;
+
 	// Transform the normal from object space to world space
-	normal = normalize(TransformVector(normal, matrix));
+	normal = normalize(TransformVector(normal, normalMatrix));
 
 
 	return normal;
@@ -161,19 +184,6 @@ void Scene::SetCubeBoundaries(const float3& position)
 }
 
 
-void Scene::SetTransform(const mat4& transform)
-{
-	cube.matrix = transform;
-	cube.invMatrix = transform.Inverted();
-	// calculate world-space bounds using the new matrix
-	//float3 bmin = {cube.b[0]}, bmax = {cube.b[1]};
-	//cube.b[0] = 1e30f;
-	//cube.b[1] = -1e30f;
-	//for (int i = 0; i < 8; i++)
-	//	cube.Grow(TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
-	//	                                   i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), transform));
-}
-
 // Function to set scaling of the voxel cube
 void Scene::SetScale(const float3& scl)
 {
@@ -210,7 +220,7 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 				}
 				else if (n < 0.08)
 				{
-					color = static_cast<MaterialType::MatType>(Rand(static_cast<float>(MaterialType::NONE)));
+					color = static_cast<MaterialType::MatType>(Rand(static_cast<float>(MaterialType::GLASS)));
 				}
 				else if (n < 0.2)
 				{
@@ -222,7 +232,7 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 				}
 				else if (n < 0.3)
 				{
-					color = MaterialType::GLASS;
+					color = MaterialType::EMISSIVE;
 				}
 				else if (n < 0.5f)
 					color = MaterialType::METAL_HIGH;
@@ -243,7 +253,7 @@ void Scene::ResetGrid(MaterialType::MatType type)
 	std::fill(grid.begin(), grid.end(), type);
 }
 
-void Scene::SetTransform(float3& rotation)
+void Scene::SetTransform(const float3& rotation)
 {
 	//as Max (230184) explained how I could rotate around a pivot
 
@@ -432,15 +442,25 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 void Scene::FindNearest(Ray& ray) const
 {
 	//TODO maybe try to move this
+	Ray backupRay = ray;
+	ray.O = TransformPosition(ray.O, cube.invMatrix);
 
+	ray.D = TransformVector(ray.D, cube.invMatrix);
+
+	ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
 
 	if (!Setup3DDDA(ray, s))
 	{
+		backupRay.t = ray.t;
+
+		backupRay.CopyToPrevRay(ray);
 		return;
 	}
+	backupRay.t = ray.t;
 
+	backupRay.CopyToPrevRay(ray);
 	// start stepping
 	while (s.t < ray.t)
 	{
@@ -448,7 +468,7 @@ void Scene::FindNearest(Ray& ray) const
 		if (cell != MaterialType::NONE && s.t < ray.t)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix, cube.invMatrix);
 			ray.indexMaterial = cell;
 			break;
 		}
@@ -510,7 +530,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 		if (cell != matType)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix, cube.invMatrix);
 			ray.indexMaterial = cell;
 			return true;
 		}

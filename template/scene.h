@@ -75,7 +75,7 @@ namespace Tmpl8
 		//from Ray tracing in one weekend
 		static Ray GetRefractedRay(const Ray& ray, const float IORRatio, bool& isReflected);
 
-		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const;
+		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& invMatrix) const;
 		float3 UintToFloat3(uint col) const;
 		float3 GetAlbedo(const Renderer& scene) const;
 		float GetEmissive(const Renderer& scene) const;
@@ -142,13 +142,12 @@ namespace Tmpl8
 
 		//Assumes size of 1
 		void SetCubeBoundaries(const float3& position);
-		void SetTransform(const mat4& transform);
+		void SetTransform(const float3& rotation);
 		void SetScale(const float3& scl);
 
 		void GenerateSomeNoise(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
-		void SetTransform(float3& rotation);
 		Scene(const float3& position, uint32_t worldSize = 128);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;

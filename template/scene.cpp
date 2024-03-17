@@ -10,7 +10,6 @@ void Ray::CopyToPrevRay(Ray& ray)
 	ray.O = O;
 	ray.D = D;
 	ray.rD = rD;
-	ray.Dsign = Dsign;
 }
 
 float3 Ray::ComputeDsign(const float3& _D) const
@@ -63,11 +62,11 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 //added comments with chatGPT
 float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& invMatrix) const
 {
-	mat4 intersectedMatrix = invMatrix;
+	const mat4 intersectedMatrix = invMatrix;
 
 	const float3 intersectionPoint = TransformPosition(IntersectionPoint(), intersectedMatrix);
 	// Calculate the intersection point
-	const float3 I1 = (intersectionPoint * static_cast<float>(worldSize));
+	const float3 I1 = intersectionPoint * static_cast<float>(worldSize);
 
 	// Calculate fractional part of I1
 	const float3 fG = fracf(I1);
@@ -82,6 +81,10 @@ float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const m
 	// Determine the normal based on the minimum distance
 	float3 normal = float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
 	mat4 normalMatrix = matrix;
+	//no translation
+	normalMatrix.cell[3] = 0;
+	normalMatrix.cell[7] = 0;
+	normalMatrix.cell[11] = 0;
 
 	// Transform the normal from object space to world space
 	normal = normalize(TransformVector(normal, normalMatrix));
@@ -180,7 +183,7 @@ bool Cube::Contains(const float3& pos) const
 void Scene::SetCubeBoundaries(const float3& position)
 {
 	cube.b[0] = position;
-	cube.b[1] = position + cube.scale;
+	cube.b[1] = position + float3{1};
 }
 
 
@@ -258,7 +261,7 @@ void Scene::SetTransform(const float3& rotation)
 	//as Max (230184) explained how I could rotate around a pivot
 
 	// Translate the object to the pivot point (center of the cube)
-	const mat4 translateToPivot = mat4::Translate((cube.b[0] + cube.b[1]) * 0.5f);
+	const mat4 translateToPivot = mat4::Translate((cube.b[0] + cube.b[1]) * 0.5f + cube.position);
 
 	// Translate back to the original position after rotation
 	const mat4 translateBack = mat4::Translate(-((cube.b[0] + cube.b[1]) * 0.5f));
@@ -454,12 +457,10 @@ void Scene::FindNearest(Ray& ray) const
 	if (!Setup3DDDA(ray, s))
 	{
 		backupRay.t = ray.t;
-
 		backupRay.CopyToPrevRay(ray);
 		return;
 	}
 	backupRay.t = ray.t;
-
 	backupRay.CopyToPrevRay(ray);
 	// start stepping
 	while (s.t < ray.t)
@@ -468,7 +469,9 @@ void Scene::FindNearest(Ray& ray) const
 		if (cell != MaterialType::NONE && s.t < ray.t)
 		{
 			ray.t = s.t;
+
 			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix, cube.invMatrix);
+
 			ray.indexMaterial = cell;
 			break;
 		}

@@ -352,15 +352,16 @@ void Renderer::RemoveVoxelVolume()
 void Renderer::AddVoxelVolume()
 {
 	voxelVolumes.emplace_back(Scene({0}));
-	float3 rot = float3{15};
-	voxelVolumes[0].SetTransform(rot);
+	const float3 rot = float3{15};
+	voxelVolumes[0].cube.rotation = rot;
+	voxelVolumes[0].SetTransform(rot * DEG2RAD);
 }
 
 void Renderer::ShapesSetUp()
 {
 	AddSphere();
 	AddVoxelVolume();
-	constexpr int sizeX = 6;
+	/*constexpr int sizeX = 6;
 	constexpr int sizeY = 1;
 	constexpr int sizeZ = 2;
 	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
@@ -375,7 +376,7 @@ void Renderer::ShapesSetUp()
 				                                powersTwo[index]));
 			}
 		}
-	}
+	}*/
 }
 
 void Renderer::Init()
@@ -466,7 +467,15 @@ void Renderer::FindNearest(Ray& ray)
 	for (auto& scene : voxelVolumes)
 
 	{
+		/*Ray backupRay = ray;
+		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
+
+		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
+
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);*/
 		scene.FindNearest(ray);
+		/*backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);*/
 	}
 
 	//get the nearest t
@@ -514,7 +523,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	{
 		return skyDome.SampleSky(ray.D);
 	}
-	//return .5f * (normal + 1);
+
+	return .5f * (ray.rayNormal + 1);
 
 	const float3 intersectionPoint = ray.IntersectionPoint();
 	//return intersectionPoint;
@@ -1344,7 +1354,7 @@ void Renderer::HandleImguiVoxelVolumes()
 		{
 			ResetAccumulator();
 		}
-		float3 pos = scene.cube.b[0];
+		float3 pos = scene.cube.position;
 		float3 rot = scene.cube.rotation; // Rotation
 		float3 scale = scene.cube.scale; // Scale
 		bool update = false;
@@ -1362,8 +1372,8 @@ void Renderer::HandleImguiVoxelVolumes()
 			// Apply rotation and scaling
 			scene.cube.scale = scale;
 			scene.cube.rotation = rot;
+			scene.cube.position = pos;
 
-			scene.SetCubeBoundaries(pos);
 			rot *= DEG2RAD;
 			scene.SetTransform(rot);
 			ResetAccumulator();

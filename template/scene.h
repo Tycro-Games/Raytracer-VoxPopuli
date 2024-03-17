@@ -113,8 +113,9 @@ namespace Tmpl8
 		Cube() = default;
 		float Intersect(const Ray& ray) const;
 		bool Contains(const float3& pos) const;
-		float3 b[2];
+		float3 b[2] = {{0}, {1}};
 		float3 rotation{0};
+		float3 position{0};
 		float3 scale{1};
 		mat4 invMatrix;
 		mat4 matrix;

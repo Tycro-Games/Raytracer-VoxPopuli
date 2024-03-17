@@ -200,10 +200,21 @@ bool Renderer::IsOccluded(Ray& ray) const
 {
 	for (auto& scene : voxelVolumes)
 	{
+		Ray backupRay = ray;
+		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
+
+		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
+
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+		ray.Dsign = ray.ComputeDsign(ray.D);
 		if (scene.IsOccluded(ray))
 		{
+			backupRay.t = ray.t;
+			backupRay.CopyToPrevRay(ray);
 			return true;
 		}
+		backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);
 	}
 
 
@@ -361,7 +372,7 @@ void Renderer::ShapesSetUp()
 {
 	AddSphere();
 	AddVoxelVolume();
-	/*constexpr int sizeX = 6;
+	constexpr int sizeX = 6;
 	constexpr int sizeY = 1;
 	constexpr int sizeZ = 2;
 	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
@@ -376,7 +387,7 @@ void Renderer::ShapesSetUp()
 				                                powersTwo[index]));
 			}
 		}
-	}*/
+	}
 }
 
 void Renderer::Init()

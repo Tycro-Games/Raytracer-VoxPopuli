@@ -352,7 +352,7 @@ void Renderer::RemoveVoxelVolume()
 void Renderer::AddVoxelVolume()
 {
 	voxelVolumes.emplace_back(Scene({0}));
-	const float3 rot = float3{15};
+	const float3 rot = float3{15.0f, 0.0f, 0.0f};
 	voxelVolumes[0].cube.rotation = rot;
 	voxelVolumes[0].SetTransform(rot * DEG2RAD);
 }
@@ -467,15 +467,16 @@ void Renderer::FindNearest(Ray& ray)
 	for (auto& scene : voxelVolumes)
 
 	{
-		/*Ray backupRay = ray;
+		Ray backupRay = ray;
 		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
 
 		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
 
-		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);*/
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+		ray.Dsign = ray.ComputeDsign(ray.D);
 		scene.FindNearest(ray);
-		/*backupRay.t = ray.t;
-		backupRay.CopyToPrevRay(ray);*/
+		backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);
 	}
 
 	//get the nearest t
@@ -524,7 +525,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		return skyDome.SampleSky(ray.D);
 	}
 
-	return .5f * (ray.rayNormal + 1);
+	//return .5f * (ray.rayNormal + 1);
 
 	const float3 intersectionPoint = ray.IntersectionPoint();
 	//return intersectionPoint;
@@ -822,6 +823,14 @@ void Renderer::Shutdown()
 	FILE* f = fopen("camera.bin", "wb");
 	fwrite(&camera, 1, sizeof(Camera), f);
 	fclose(f);
+}
+
+void Renderer::MouseDown(int button)
+{
+	std::cout << "Button: " << button << std::endl;
+	Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(mousePos.x),
+	                                      static_cast<float>(mousePos.y));
+	FindNearest(primaryRay);
 }
 
 void Renderer::HandleImguiPointLights()

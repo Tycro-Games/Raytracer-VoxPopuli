@@ -10,6 +10,7 @@ void Ray::CopyToPrevRay(Ray& ray)
 	ray.O = O;
 	ray.D = D;
 	ray.rD = rD;
+	ray.Dsign = Dsign;
 }
 
 float3 Ray::ComputeDsign(const float3& _D) const
@@ -60,33 +61,31 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 //#endif
 //}
 //added comments with chatGPT
-float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& invMatrix) const
+float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& /*invMatrix*/) const
 {
-	const mat4 intersectedMatrix = invMatrix;
-
-	const float3 intersectionPoint = TransformPosition(IntersectionPoint(), intersectedMatrix);
+	//const mat4 intersectedMatrix = invMatrix;
+	//float3 dir = normalize(TransformVector(D, intersectedMatrix));
+	//const float3 intersectionPoint = TransformPosition(IntersectionPoint(), intersectedMatrix);
 	// Calculate the intersection point
-	const float3 I1 = intersectionPoint * static_cast<float>(worldSize);
+	const float3 I1 = IntersectionPoint() * static_cast<float>(worldSize);
 
 	// Calculate fractional part of I1
 	const float3 fG = fracf(I1);
 
-	// Calculate distances to boundaries											  
+	// Calculate distances to boundaries                                              
 	const float3 d = min3(fG, 1.0f - fG);
 	const float mind = min(min(d.x, d.y), d.z);
 
 	// Calculate signs
-	const float3 sign = Dsign * 2 - 1;
+	const float3 sign = ComputeDsign(D) * 2 - 1;
 
 	// Determine the normal based on the minimum distance
-	float3 normal = float3(mind == d.x ? sign.x : 0, mind == d.y ? sign.y : 0, mind == d.z ? sign.z : 0);
+	float3 normal = float3(mind == d.x ? sign.x : 0.0f, mind == d.y ? sign.y : 0.0f, mind == d.z ? sign.z : 0.0f);
 	mat4 normalMatrix = matrix;
-	//no translation
-	normalMatrix.cell[3] = 0;
-	normalMatrix.cell[7] = 0;
-	normalMatrix.cell[11] = 0;
+
 
 	// Transform the normal from object space to world space
+
 	normal = normalize(TransformVector(normal, normalMatrix));
 
 
@@ -259,22 +258,37 @@ void Scene::ResetGrid(MaterialType::MatType type)
 void Scene::SetTransform(const float3& rotation)
 {
 	//as Max (230184) explained how I could rotate around a pivot
-
+	float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
 	// Translate the object to the pivot point (center of the cube)
-	const mat4 translateToPivot = mat4::Translate((cube.b[0] + cube.b[1]) * 0.5f + cube.position);
+	const mat4 translateToPivot = mat4::Translate(centerCube + cube.position);
 
 	// Translate back to the original position after rotation
-	const mat4 translateBack = mat4::Translate(-((cube.b[0] + cube.b[1]) * 0.5f));
+	const mat4 translateBack = mat4::Translate(-centerCube);
 
 	// Scale the object
 	const mat4 scale = mat4::Scale(cube.scale);
 
 	// Rotate the object around the pivot point
-	const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+	//const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+	quat qRot;
+	qRot.fromAxisAngle(float3{1, 0, 0}, rotation.x);
+	// Rotation around the Y-axis
+	quat qRotY;
+	qRotY.fromAxisAngle(float3{0, 1, 0}, rotation.y);
+	qRot = qRotY * qRot; // Apply rotation around Y-axis
 
+	// Rotation around the Z-axis
+	quat qRotZ;
+	qRotZ.fromAxisAngle(float3{0, 0, 1}, rotation.z);
+	qRot = qRotZ * qRot; // Apply rotation around Z-axis
+	mat4 rot = qRot.toMatrix();
 	// Calculate the inverse transformation matrix
-	cube.matrix = (translateToPivot * rot * scale * translateBack);
-	cube.invMatrix = cube.matrix.Inverted();
+	//cube.matrix = (translateToPivot * rot * scale * translateBack);
+	cube.matrix = translateToPivot * scale * rot * translateBack;
+	//cube.matrix = mat4::Identity() * translateBack * scale * rot * translateToPivot;
+
+
+	cube.invMatrix = (mat4::Identity() * translateToPivot * rot * scale * translateBack).Inverted();
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -445,23 +459,23 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 void Scene::FindNearest(Ray& ray) const
 {
 	//TODO maybe try to move this
-	Ray backupRay = ray;
-	ray.O = TransformPosition(ray.O, cube.invMatrix);
+	//Ray backupRay = ray;
+	//ray.O = TransformPosition(ray.O, cube.invMatrix);
 
-	ray.D = TransformVector(ray.D, cube.invMatrix);
+	//ray.D = TransformVector(ray.D, cube.invMatrix);
 
-	ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+	//ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
 
 	if (!Setup3DDDA(ray, s))
 	{
-		backupRay.t = ray.t;
-		backupRay.CopyToPrevRay(ray);
+		//backupRay.t = ray.t;
+		//backupRay.CopyToPrevRay(ray);
 		return;
 	}
-	backupRay.t = ray.t;
-	backupRay.CopyToPrevRay(ray);
+	//backupRay.t = ray.t;
+	//backupRay.CopyToPrevRay(ray);
 	// start stepping
 	while (s.t < ray.t)
 	{

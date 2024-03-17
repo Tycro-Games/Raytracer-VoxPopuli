@@ -67,10 +67,7 @@ namespace Tmpl8
 		//	/* implement if you want to detect mouse button presses */
 		//}
 
-		//void MouseDown(int button) override
-		//{
-		//	/* implement if you want to detect mouse button presses */
-		//}
+		void MouseDown(int button) override;
 
 		//void MouseMove(int x, int y) override
 		//{

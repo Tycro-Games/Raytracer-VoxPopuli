@@ -13,6 +13,19 @@ void Ray::CopyToPrevRay(Ray& ray)
 	ray.Dsign = Dsign;
 }
 
+Ray::Ray(const Ray& ray)
+{
+	O = ray.O;
+	D = ray.D;
+	rD = ray.rD;
+	Dsign = ray.Dsign;
+	t = ray.t;
+	//not needed
+	/*rayNormal = ray.rayNormal;
+	indexMaterial = ray.indexMaterial;
+	isInsideGlass = ray.isInsideGlass;*/
+}
+
 float3 Ray::ComputeDsign(const float3& _D) const
 {
 	const uint x_sign = (*(uint*)&_D.x >> 31);
@@ -22,6 +35,30 @@ float3 Ray::ComputeDsign(const float3& _D) const
 	return (float3(static_cast<float>(x_sign) * 2 - 1, static_cast<float>(y_sign) * 2 - 1,
 	               static_cast<float>(z_sign) * 2 - 1) + 1) * 0.5f;
 }
+
+float3 Ray::ComputeDsign_SSE(const __m128& m) const
+{
+	//__m128i dirSSE = _mm_castps_si128(m);
+	//dirSSE = _mm_srli_epi32(dirSSE, 31);
+	//const __m128 signs = _mm_cvtepi32_ps(dirSSE);
+	////multiply by two substract 1
+	//__m128 result = _mm_sub_ps(_mm_mul_ps(signs, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+	////add one and multiply by 0.5
+	//const __m128 one = _mm_set1_ps(1.0f);
+	//const __m128 point5 = _mm_set1_ps(.5f);
+	//result = _mm_add_ps(result, one);
+
+	//result = _mm_mul_ps(result, point5);
+	//Max told me to do this, because it is just easier
+	__m128i signs = _mm_srli_epi32((__m128i&)m, 31);
+
+
+	return {
+		static_cast<float>(signs.m128i_u32[0]), static_cast<float>(signs.m128i_u32[1]),
+		static_cast<float>(signs.m128i_u32[2])
+	};
+}
+
 
 Ray::Ray(const float3 origin, const float3 direction, const float rayLength, const int) : O(origin), t(rayLength)
 {
@@ -63,9 +100,6 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 //added comments with chatGPT
 float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& /*invMatrix*/) const
 {
-	//const mat4 intersectedMatrix = invMatrix;
-	//float3 dir = normalize(TransformVector(D, intersectedMatrix));
-	//const float3 intersectionPoint = TransformPosition(IntersectionPoint(), intersectedMatrix);
 	// Calculate the intersection point
 	const float3 I1 = IntersectionPoint() * static_cast<float>(worldSize);
 
@@ -77,16 +111,14 @@ float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const m
 	const float mind = min(min(d.x, d.y), d.z);
 
 	// Calculate signs
-	const float3 sign = ComputeDsign(D) * 2 - 1;
+	const float3 sign = Dsign * 2 - 1;
 
 	// Determine the normal based on the minimum distance
 	float3 normal = float3(mind == d.x ? sign.x : 0.0f, mind == d.y ? sign.y : 0.0f, mind == d.z ? sign.z : 0.0f);
-	mat4 normalMatrix = matrix;
 
 
 	// Transform the normal from object space to world space
-
-	normal = normalize(TransformVector(normal, normalMatrix));
+	normal = normalize(TransformVector(normal, matrix));
 
 
 	return normal;
@@ -258,7 +290,7 @@ void Scene::ResetGrid(MaterialType::MatType type)
 void Scene::SetTransform(const float3& rotation)
 {
 	//as Max (230184) explained how I could rotate around a pivot
-	float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
+	const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
 	// Translate the object to the pivot point (center of the cube)
 	const mat4 translateToPivot = mat4::Translate(centerCube + cube.position);
 
@@ -281,9 +313,8 @@ void Scene::SetTransform(const float3& rotation)
 	quat qRotZ;
 	qRotZ.fromAxisAngle(float3{0, 0, 1}, rotation.z);
 	qRot = qRotZ * qRot; // Apply rotation around Z-axis
-	mat4 rot = qRot.toMatrix();
+	const mat4 rot = qRot.toMatrix();
 	// Calculate the inverse transformation matrix
-	//cube.matrix = (translateToPivot * rot * scale * translateBack);
 	cube.matrix = translateToPivot * scale * rot * translateBack;
 	//cube.matrix = mat4::Identity() * translateBack * scale * rot * translateToPivot;
 
@@ -458,24 +489,13 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 
 void Scene::FindNearest(Ray& ray) const
 {
-	//TODO maybe try to move this
-	//Ray backupRay = ray;
-	//ray.O = TransformPosition(ray.O, cube.invMatrix);
-
-	//ray.D = TransformVector(ray.D, cube.invMatrix);
-
-	//ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
 
 	if (!Setup3DDDA(ray, s))
 	{
-		//backupRay.t = ray.t;
-		//backupRay.CopyToPrevRay(ray);
 		return;
 	}
-	//backupRay.t = ray.t;
-	//backupRay.CopyToPrevRay(ray);
 	// start stepping
 	while (s.t < ray.t)
 	{

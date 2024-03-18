@@ -3,11 +3,4 @@
 class SkyDome
 {
 public:
-	SkyDome();
-	float3 SampleSky(const float3& direction) const;
-	float HDRLightContribution = 5.9f;
-
-private:
-	int skyWidth, skyHeight;
-	float* skyPixels;
 };

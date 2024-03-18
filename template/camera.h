@@ -1,10 +1,10 @@
 #pragma once
 
 // default screen resolution
-#define SCRWIDTH	1024
-#define SCRHEIGHT	640
+#define SCRWIDTH	640
+#define SCRHEIGHT	480
 // #define FULLSCREEN
-// #define DOUBLESIZE
+#define DOUBLESIZE
 
 namespace Tmpl8
 {

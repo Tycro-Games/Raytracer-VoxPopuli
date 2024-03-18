@@ -69,6 +69,8 @@ namespace Tmpl8
 
 		void MouseDown(int button) override;
 
+		float3 SampleSky(const float3& direction) const;
+
 		//void MouseMove(int x, int y) override
 		//{
 		//	mousePos.x = x, mousePos.y = y;
@@ -106,7 +108,6 @@ namespace Tmpl8
 		Camera camera;
 		Camera prevCamera;
 		float frqGenerationPerlinNoise = .03f;
-		float HDRLightContribution = 1.5f;
 		float antiAliasingStrength = 1.0f;
 		float radiusEmissiveSphere = 1.0f;
 		float colorThreshold = .1f;
@@ -137,5 +138,11 @@ namespace Tmpl8
 		int matTypeSphere = MaterialType::GLASS;
 		//BVH
 		BasicBVH bvh;
+
+
+		//skydome
+		float HDRLightContribution = 5.9f;
+		int skyWidth, skyHeight;
+		float* skyPixels;
 	};
 } // namespace Tmpl8

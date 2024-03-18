@@ -9,7 +9,7 @@ namespace Tmpl8
 // #define TWOLEVEL
 //#define USE_MORTON 
 //constexpr uint32_t WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
-// #define USE_SIMD
+#define SIMD
 // #define USE_FMA3
 // #define SKYDOME
 // #define WHITTED
@@ -63,8 +63,10 @@ namespace Tmpl8
 	public:
 		void CopyToPrevRay(Ray& ray);
 		Ray() = default;
+		Ray(const Ray& ray);
 
 		float3 ComputeDsign(const float3& _D) const;
+		float3 ComputeDsign_SSE(const __m128& m) const;
 		Ray(const float3 origin, const float3 direction, const float rayLength = 1e34f, const int = 0);
 
 		float3 IntersectionPoint() const
@@ -149,7 +151,7 @@ namespace Tmpl8
 		void GenerateSomeNoise(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
-		Scene(const float3& position, uint32_t worldSize = 128);
+		Scene(const float3& position, uint32_t worldSize = 64);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		void FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;

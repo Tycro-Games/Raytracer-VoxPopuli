@@ -2,6 +2,7 @@
 
 #include <execution>
 #include <filesystem>
+#include <stb_image.h>
 
 // YOU GET:
 // 1. A fast voxel renderer in plain C/C++
@@ -66,6 +67,10 @@
 
 void Renderer::InitMultithreading()
 {
+#ifdef 	PROFILE
+	SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
+#endif
+
 	const auto numThreads = thread::hardware_concurrency();
 	cout << "Number of threads: " << numThreads << '\n';
 	std::vector<uint32_t> threads;
@@ -370,7 +375,7 @@ void Renderer::AddVoxelVolume()
 
 void Renderer::ShapesSetUp()
 {
-	AddSphere();
+	//AddSphere();
 	AddVoxelVolume();
 	constexpr int sizeX = 6;
 	constexpr int sizeY = 1;
@@ -393,7 +398,12 @@ void Renderer::ShapesSetUp()
 void Renderer::Init()
 {
 	CopyToPrevCamera();
-
+	int skyBpp;
+	skyPixels = stbi_loadf("assets/sky_19.hdr", &skyWidth, &skyHeight, &skyBpp, 0);
+	for (int i = 0; i < skyWidth * skyHeight * 3; i++)
+	{
+		skyPixels[i] = sqrtf(skyPixels[i]);
+	}
 	//sizeof(Ray);
 	InitSeed(static_cast<uint>(time(nullptr)));
 
@@ -473,18 +483,57 @@ float3 Renderer::Refract(const float3 direction, const float3 normal, const floa
 	return rPer + rPar;
 }
 
+//might use this this for even faster reciprocal
+//https://stackoverflow.com/questions/75628394/how-to-get-mm256-rcp-pd-in-avx2
+__m256d fastinv(__m256d y)
+{
+	// exact results for powers of two
+	const __m256i magic = _mm256_set1_epi64x(0x7fe0'0000'0000'0000);
+	// Bit-magic: For powers of two this just inverts the exponent, 
+	// and values between that are linearly interpolated 
+	__m256d x = _mm256_castsi256_pd(_mm256_sub_epi64(magic, _mm256_castpd_si256(y)));
+
+	// Newton-Raphson refinement: x = x*(2.0 - x*y):
+	x = _mm256_mul_pd(x, _mm256_fnmadd_pd(x, y, _mm256_set1_pd(2.0)));
+
+	return x;
+}
+
 void Renderer::FindNearest(Ray& ray)
 {
 	for (auto& scene : voxelVolumes)
 
 	{
 		Ray backupRay = ray;
-		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
 
-		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
+		float3 origin = ray.O;
+		float3 dir = ray.D;
+		mat4 invMat = scene.cube.invMatrix;
+#ifdef SIMD
+		__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
+
+		ray.O = TransformPosition_SSE(oriSSE, invMat);
+		__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
+
+		ray.D = TransformVector_SSE(dirSSE, invMat);
+		dir = ray.D;
+		dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
+		__m128 rDSSE = _mm_div_ps(_mm_set_ps1(1.0f), dirSSE);
+
+
+		ray.rD = float3{rDSSE.m128_f32[0], rDSSE.m128_f32[1], rDSSE.m128_f32[2]};
+		ray.Dsign = ray.ComputeDsign_SSE(dirSSE);
+
+#else
+		ray.O = TransformPosition(ray.O, invMat);
+
+
+		ray.D = TransformVector(ray.D, invMat);
 
 		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 		ray.Dsign = ray.ComputeDsign(ray.D);
+#endif
+
 		scene.FindNearest(ray);
 		backupRay.t = ray.t;
 		backupRay.CopyToPrevRay(ray);
@@ -533,7 +582,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	// Break early if no intersection
 	if (ray.indexMaterial == MaterialType::NONE)
 	{
-		return skyDome.SampleSky(ray.D);
+		return SampleSky(ray.D);
 	}
 
 	//return .5f * (ray.rayNormal + 1);
@@ -603,7 +652,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 				isInsideVolume = voxelVolumes[0].FindMaterialExit(ray, MaterialType::GLASS);
 			}
 			if (!isInsideVolume)
-				return skyDome.SampleSky(ray.D);
+				return SampleSky(ray.D);
 
 			float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
 			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
@@ -700,52 +749,52 @@ void Renderer::Update()
 	         {
 #endif
 
-		         const uint32_t pitch = y * SCRWIDTH;
-		         for (uint32_t x = 0; x < SCRWIDTH; x++)
-		         {
-			         float3 newPixel{0};
+		const uint32_t pitch = y * SCRWIDTH;
+		for (uint32_t x = 0; x < SCRWIDTH; x++)
+		{
+			float3 newPixel{0};
 
 
-			         //AA
-			         const float randomXDir = RandomFloat() * antiAliasingStrength;
-			         const float randomYDir = RandomFloat() * antiAliasingStrength;
+			//AA
+			const float randomXDir = RandomFloat() * antiAliasingStrength;
+			const float randomYDir = RandomFloat() * antiAliasingStrength;
 
-			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-			                                               static_cast<float>(y) + randomYDir);
-			         //get new pixel
-			         newPixel = Trace(primaryRay, maxBounces);
-			         float4 pixel = newPixel;
+			Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+			                                      static_cast<float>(y) + randomYDir);
+			//get new pixel
+			newPixel = Trace(primaryRay, maxBounces);
+			float4 pixel = newPixel;
 
-			         ////use this for reprojection?
-			         const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
-			         if (IsValid(previousPixelCoordinate) && !staticCamera)
-			         {
-				         float4 previousFrameColor = SamplePreviousFrameColor(
-					         previousPixelCoordinate);
+			////use this for reprojection?
+			const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
+			if (IsValid(previousPixelCoordinate) && !staticCamera)
+			{
+				float4 previousFrameColor = SamplePreviousFrameColor(
+					previousPixelCoordinate);
 
 
-				         /*         if (staticCamera)
-							          weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
-				         //weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
-				         const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
-				                                                1.0f - weight);
-				         pixel = blendedColor;
-			         }
+				/*         if (staticCamera)
+							 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
+				//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
+				const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
+				                                       1.0f - weight);
+				pixel = blendedColor;
+			}
 
-			         if (staticCamera)
-			         {
-				         weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-				         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
-			         }
-			         //display
-			         accumulator[x + pitch] = pixel;
+			if (staticCamera)
+			{
+				weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+				pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			}
+			//display
+			accumulator[x + pitch] = pixel;
 
-			         pixel = ApplyReinhardJodie(pixel);
+			pixel = ApplyReinhardJodie(pixel);
 
-			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		         }
-#ifdef PROFILE
+			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		}
+#ifdef PROFILE
+	}
 #else
 	         });
 #endif
@@ -842,6 +891,30 @@ void Renderer::MouseDown(int button)
 	Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(mousePos.x),
 	                                      static_cast<float>(mousePos.y));
 	FindNearest(primaryRay);
+}
+
+float3 Renderer::SampleSky(const float3& direction) const
+{
+	// Sample sky
+	const float uFloat = static_cast<float>(skyWidth) * atan2_approximation2(direction.z, direction.x) * INV2PI
+		- 0.5f;
+	const int u = static_cast<int>(uFloat);
+
+	const float vFloat = static_cast<float>(skyHeight) * FastAcos(direction.y) * INVPI - 0.5f;
+
+	const int v = static_cast<int>(vFloat);
+
+	const int skyIdx = max(0, u + v * skyWidth) * 3;
+
+	return HDRLightContribution * float3{skyPixels[skyIdx], skyPixels[skyIdx + 1], skyPixels[skyIdx + 2]};
+	//const float uFloat = static_cast<float>(skyWidth) * atan2f(direction.z, direction.x) * INV2PI - 0.5f;
+	//const float vFloat = static_cast<float>(skyHeight) * acosf(direction.y) * INVPI - 0.5f;
+
+	//const int u = static_cast<int>(uFloat);
+	//const int v = static_cast<int>(vFloat);
+
+	//const int skyIdx = max(0, u + v * skyWidth) * 3;
+	//return HDRLightContribution * float3(skyPixels[skyIdx], skyPixels[skyIdx + 1], skyPixels[skyIdx + 2]);
 }
 
 void Renderer::HandleImguiPointLights()
@@ -1056,7 +1129,7 @@ void Renderer::HandleImguiCamera()
 		ResetAccumulator();
 	}
 
-	ImGui::SliderFloat("HDR contribution", &skyDome.HDRLightContribution, 0.1f, 10.0f);
+	ImGui::SliderFloat("HDR contribution", &HDRLightContribution, 0.1f, 10.0f);
 
 	if (ImGui::IsItemEdited())
 

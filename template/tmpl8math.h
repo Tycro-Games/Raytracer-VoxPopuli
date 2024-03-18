@@ -2929,6 +2929,8 @@ float3 TransformVector(const float3& a, const mat4& M);
 float3 TransformPosition_SSE(const __m128& a, const mat4& M);
 float3 TransformVector_SSE(const __m128& a, const mat4& M);
 float3 TransformVector_SSE(const __m128& a, const mat4& M);
+float atan2_approximation2(float y, float x);
+float FastAcos(float x);
 
 class quat // based on https://github.com/adafruit
 {

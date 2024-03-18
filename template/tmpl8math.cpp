@@ -366,6 +366,47 @@ float3 TransformVector_SSE(const __m128& a, const mat4& M)
 	return float3(v.m128_f32[0], v.m128_f32[1], v.m128_f32[2]);
 }
 
+//from https://gist.github.com/volkansalma/2972237
+float atan2_approximation2(float y, float x)
+{
+	const float ONEQTR_PI = PI / 4.0;
+	const float THRQTR_PI = 3.0 * PI / 4.0;
+	float r, angle;
+	float abs_y = fabs(y) + 1e-10f; // kludge to prevent 0/0 condition
+	if (x < 0.0f)
+	{
+		r = (x + abs_y) / (abs_y - x);
+		angle = THRQTR_PI;
+	}
+	else
+	{
+		r = (x - abs_y) / (x + abs_y);
+		angle = ONEQTR_PI;
+	}
+	angle += (0.1963f * r * r - 0.9817f) * r;
+	if (y < 0.0f)
+		return (-angle); // negate if in quad III or IV
+	else
+		return (angle);
+}
+
+//from https://stackoverflow.com/questions/3380628/fast-arc-cos-algorithm
+float FastAcos(float x)
+{
+	float negate = float(x < 0);
+	x = abs(x);
+	float ret = -0.0187293;
+	ret = ret * x;
+	ret = ret + 0.0742610f;
+	ret = ret * x;
+	ret = ret - 0.2121144f;
+	ret = ret * x;
+	ret = ret + 1.5707288f;
+	ret = ret * sqrt(1.0f - x);
+	ret = ret - 2 * negate * ret;
+	return negate * 3.14159265358979f + ret;
+}
+
 // Self intersection fix from chapter 6:https://www.realtimerendering.com/raytracinggems/unofficial_RayTracingGems_v1.9.pdf
 constexpr float origin()
 {

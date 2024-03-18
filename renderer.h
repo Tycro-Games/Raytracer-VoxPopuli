@@ -34,6 +34,9 @@ namespace Tmpl8
 		void Illumination(Ray& ray, float3& incLight);
 		static float3 Reflect(float3 direction, float3 normal);
 		static float3 Refract(float3 direction, float3 normal, float IORRatio);
+		__m128 FastReciprocal(__m128& x);
+		__m128 SlowReciprocal(__m128& dirSSE);
+		void TransformPositionAndDirection_SSE(__m128& oriSSE, __m128& dirSSE, const mat4& invMat, Ray& ray);
 		void FindNearest(Ray& ray);
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);

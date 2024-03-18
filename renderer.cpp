@@ -67,9 +67,9 @@
 
 void Renderer::InitMultithreading()
 {
-#ifdef 	PROFILE
-	SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
-#endif
+	//#ifdef 	PROFILE
+	//	SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
+	//#endif
 
 	const auto numThreads = thread::hardware_concurrency();
 	cout << "Number of threads: " << numThreads << '\n';
@@ -483,20 +483,18 @@ float3 Renderer::Refract(const float3 direction, const float3 normal, const floa
 	return rPer + rPar;
 }
 
-//might use this this for even faster reciprocal
-//https://stackoverflow.com/questions/75628394/how-to-get-mm256-rcp-pd-in-avx2
-__m256d fastinv(__m256d y)
+// use this this for even faster reciprocal
+//https://stackoverflow.com/questions/31555260/fast-vectorized-rsqrt-and-reciprocal-with-sse-avx-depending-on-precision
+__m128 Renderer::FastReciprocal(__m128& x)
 {
-	// exact results for powers of two
-	const __m256i magic = _mm256_set1_epi64x(0x7fe0'0000'0000'0000);
-	// Bit-magic: For powers of two this just inverts the exponent, 
-	// and values between that are linearly interpolated 
-	__m256d x = _mm256_castsi256_pd(_mm256_sub_epi64(magic, _mm256_castpd_si256(y)));
+	__m128 res = _mm_rcp_ps(x);
+	__m128 muls = _mm_mul_ps(x, _mm_mul_ps(res, res));
+	return res = _mm_sub_ps(_mm_add_ps(res, res), muls);
+}
 
-	// Newton-Raphson refinement: x = x*(2.0 - x*y):
-	x = _mm256_mul_pd(x, _mm256_fnmadd_pd(x, y, _mm256_set1_pd(2.0)));
-
-	return x;
+__m128 Renderer::SlowReciprocal(__m128& dirSSE)
+{
+	return _mm_div_ps(_mm_set_ps1(1.0f), dirSSE);
 }
 
 void Renderer::FindNearest(Ray& ray)
@@ -511,18 +509,25 @@ void Renderer::FindNearest(Ray& ray)
 		mat4 invMat = scene.cube.invMatrix;
 #ifdef SIMD
 		__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
+		__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
 
 		ray.O = TransformPosition_SSE(oriSSE, invMat);
-		__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
 
 		ray.D = TransformVector_SSE(dirSSE, invMat);
 		dir = ray.D;
-		dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
-		__m128 rDSSE = _mm_div_ps(_mm_set_ps1(1.0f), dirSSE);
+		dirSSE = _mm_set_ps(0.0f, dir.z, dir.y, dir.x);
+		//for my machine the fast reciprocal is a bit slower
 
+#if 1
+		__m128 rDSSE = SlowReciprocal(dirSSE);
+#else
+		__m128 rDSSE = FastReciprocal(dirSSE);
+
+#endif
+
+		ray.Dsign = ray.ComputeDsign_SSE(dirSSE);
 
 		ray.rD = float3{rDSSE.m128_f32[0], rDSSE.m128_f32[1], rDSSE.m128_f32[2]};
-		ray.Dsign = ray.ComputeDsign_SSE(dirSSE);
 
 #else
 		ray.O = TransformPosition(ray.O, invMat);

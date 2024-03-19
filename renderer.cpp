@@ -304,9 +304,10 @@ void Renderer::MaterialSetUp()
 	//partial mirror
 	const auto glass = make_shared<Material>(float3(1, 1, 1));
 	glass->IOR = 1.45f;
-	const auto smoke = make_shared<Material>(float3(1, 1, 0.35f));
+	const auto smoke = make_shared<Material>(float3(1, 0, 1));
 	smoke->IOR = 1.0f;
 	smoke->emissiveStrength = 8.0f;
+	smoke->roughness = 1.0f;
 	const auto emissive = make_shared<Material>(float3(1, 0, 0));
 	emissive->emissiveStrength = 5.0f;
 
@@ -384,7 +385,7 @@ void Renderer::ShapesSetUp()
 	//AddSphere();
 	AddVoxelVolume();
 	constexpr int sizeX = 6;
-	constexpr int sizeY = 5;
+	constexpr int sizeY = 1;
 	constexpr int sizeZ = 2;
 	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
 	for (int i = 0; i < sizeX; i++)
@@ -546,10 +547,10 @@ int32_t Renderer::FindNearest(Ray& ray)
 		ray.Dsign = ray.ComputeDsign(ray.D);
 #endif
 
-		/*	if (voxelVolumes[i].FindNearest(ray))
-			{
-				voxelIndex = i;
-			}*/
+		if (voxelVolumes[i].FindNearest(ray))
+		{
+			voxelIndex = i;
+		}
 		backupRay.t = ray.t;
 		backupRay.CopyToPrevRay(ray);
 	}
@@ -709,7 +710,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 color{1.0f};
 			//code for glass
 			bool isInGlass = ray.isInsideGlass;
-			float IORMaterial = ray.GetRefractivity(*this); //1
+			float IORMaterial = ray.GetRefractivity(*this); //1.45
 			//get the IOR
 			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
 			//we need to get to the next voxel
@@ -720,9 +721,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 				float intensity = ray.GetEmissive(*this);
 				//only the first one has glass
 				isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::SMOKE);
-				float newT = ray.t; // *static_cast<float>(voxelVolumes[voxIndex].GRIDSIZE);
-				//return (newT)*;
-				color = Absorption(color, intensity, (newT));
+
+				color = Absorption(color, intensity, ray.t);
 			}
 			if (!isInsideVolume)
 			{
@@ -737,12 +737,12 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 			float3 resultingDirection;
 
-			////this may be negative if we refract
+			//this may be negative if we refract
 			float3 resultingNormal;
 			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
 			{
 				//reflect!
-				resultingDirection = Reflect(ray.D, ray.rayNormal);
+				resultingDirection = ray.D;
 				resultingNormal = ray.rayNormal;
 			}
 			else
@@ -781,17 +781,17 @@ float Renderer::SchlickReflectance(const float cosine, const float indexOfRefrac
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
-float3 Renderer::Absorption(float3& color, float intensity, float distanceTraveled)
+float3 Renderer::Absorption(const float3& color, float intensity, float distanceTraveled)
 {
 	// Combining 'e' and 'c' terms into a single "density" value (stored as intensity in the material).
 	// [Credit] https://www.flipcode.com/archives/Raytracing_Topics_Techniques-Part_3_Refractions_and_Beers_Law.shtml
 	const float3 flipped_color{1.0f - color};
-	const float3 exponent{
+	float3 exponent{
 		-distanceTraveled
 		* intensity
 		* flipped_color
 	};
-
+	//exponent = exponent * 10.0f;
 	return {expf(exponent.x), expf(exponent.y), expf(exponent.z)};
 }
 
@@ -839,50 +839,50 @@ void Renderer::Update()
 	         {
 #endif
 
-		const uint32_t pitch = y * SCRWIDTH;
-		for (uint32_t x = 0; x < SCRWIDTH; x++)
-		{
-			float3 newPixel{0};
+		         const uint32_t pitch = y * SCRWIDTH;
+		         for (uint32_t x = 0; x < SCRWIDTH; x++)
+		         {
+			         float3 newPixel{0};
 
 
-			//AA
-			const float randomXDir = RandomFloat() * antiAliasingStrength;
-			const float randomYDir = RandomFloat() * antiAliasingStrength;
+			         //AA
+			         const float randomXDir = RandomFloat() * antiAliasingStrength;
+			         const float randomYDir = RandomFloat() * antiAliasingStrength;
 
-			Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-			                                      static_cast<float>(y) + randomYDir);
-			//get new pixel
-			newPixel = Trace(primaryRay, maxBounces);
-			float4 pixel = newPixel;
+			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+			                                               static_cast<float>(y) + randomYDir);
+			         //get new pixel
+			         newPixel = Trace(primaryRay, maxBounces);
+			         float4 pixel = newPixel;
 
-			//////use this for reprojection?
-			//const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
-			//if (IsValid(previousPixelCoordinate) && !staticCamera)
-			//{
-			//	float4 previousFrameColor = SamplePreviousFrameColor(
-			//		previousPixelCoordinate);
+			         //////use this for reprojection?
+			         //const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
+			         //if (IsValid(previousPixelCoordinate) && !staticCamera)
+			         //{
+			         //	float4 previousFrameColor = SamplePreviousFrameColor(
+			         //		previousPixelCoordinate);
 
 
-			//	/*         if (staticCamera)
-			//				 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
-			//	//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
-			//	const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
-			//	                                       1.0f - weight);
-			//	pixel = blendedColor;
-			//}
+			         //	/*         if (staticCamera)
+			         //				 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
+			         //	//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
+			         //	const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
+			         //	                                       1.0f - weight);
+			         //	pixel = blendedColor;
+			         //}
 
-			if (staticCamera)
-			{
-				weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-				pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
-			}
-			//display
-			accumulator[x + pitch] = pixel;
+			         if (staticCamera)
+			         {
+				         weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+				         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			         }
+			         //display
+			         accumulator[x + pitch] = pixel;
 
-			pixel = ApplyReinhardJodie(pixel);
+			         pixel = ApplyReinhardJodie(pixel);
 
-			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		}
+			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+		         }
 #ifdef PROFILE
 	}
 #else
@@ -979,7 +979,7 @@ void Renderer::MouseDown(int button)
 	std::cout << "Button: " << button << std::endl;
 	Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(mousePos.x),
 	                                      static_cast<float>(mousePos.y));
-	FindNearest(primaryRay);
+	Trace(primaryRay, 5);
 }
 
 float3 Renderer::SampleSky(const float3& direction) const

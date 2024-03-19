@@ -40,7 +40,7 @@ namespace Tmpl8
 		int32_t FindNearest(Ray& ray);
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
-		float3 Absorption(float3& color, float intensity, float distanceTraveled);
+		float3 Absorption(const float3& color, float intensity, float distanceTraveled);
 		float SchlickReflectanceNonMetal(const float cosine);
 		float CalculateDistanceToPlane(const float3& point, const float3& normal, const float3& pointOnPlane);
 		float3 CalculatePlaneNormal(const float3& point1, const float3& point2, const float3& point3);

@@ -336,9 +336,9 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
 	ResetGrid(MaterialType::NONE);
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	/*if (worldSize > 1)
-		GenerateSomeNoise();*/
-	CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
+	if (worldSize > 1)
+		GenerateSomeNoise();
+	//CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
 }
 
 

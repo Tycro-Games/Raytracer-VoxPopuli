@@ -147,12 +147,14 @@ namespace Tmpl8
 		void SetScale(const float3& scl);
 
 		void GenerateSomeNoise(float frequency);
+		void GenerateSomeSmoke(float frequency);
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
 		Scene(const float3& position, uint32_t worldSize = 64);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		bool FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
+		bool FindSmokeExit(Ray& ray, MaterialType::MatType matType) const;
 		// morton order from Coppen, Max (230184)
 
 

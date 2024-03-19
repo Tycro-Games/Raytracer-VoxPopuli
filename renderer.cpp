@@ -710,48 +710,40 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 color{1.0f};
 			//code for glass
 			bool isInGlass = ray.isInsideGlass;
-			float IORMaterial = ray.GetRefractivity(*this); //1.45
+			//float IORMaterial = ray.GetRefractivity(*this); //1.45
 			//get the IOR
-			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
+			float refractionRatio = 1.0f;
 			//we need to get to the next voxel
 			bool isInsideVolume = true;
+			float intensity = 0;
+			float distanceTraveled = 0;
 			if (isInGlass)
 			{
 				color = ray.GetAlbedo(*this);
-				float intensity = ray.GetEmissive(*this);
+				intensity = ray.GetEmissive(*this);
 				//only the first one has glass
-				isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::SMOKE);
-
-				color = Absorption(color, intensity, ray.t);
+				isInsideVolume = voxelVolumes[voxIndex].FindSmokeExit(ray, MaterialType::SMOKE);
+				distanceTraveled = ray.t;
 			}
+
+			color = Absorption(color, intensity, distanceTraveled);
+
 			if (!isInsideVolume)
 			{
 				ray.O = ray.O + ray.D * ray.t;
 				ray.t = 0;
 			}
 
-			float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
-			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-
-			bool cannotRefract = refractionRatio * sinTheta > 1.0f;
-
 			float3 resultingDirection;
 
 			//this may be negative if we refract
 			float3 resultingNormal;
-			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
-			{
-				//reflect!
-				resultingDirection = ray.D;
-				resultingNormal = ray.rayNormal;
-			}
-			else
-			{
-				//we are exiting or entering the glass
-				resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
-				isInGlass = !isInGlass;
-				resultingNormal = -ray.rayNormal;
-			}
+
+			//we are exiting or entering the glass
+			resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
+			isInGlass = !isInGlass;
+			resultingNormal = -ray.rayNormal;
+
 
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
@@ -1203,6 +1195,7 @@ void Renderer::HandleImguiCamera()
 	{
 		ResetAccumulator();
 	}
+
 	ImGui::SliderFloat(" threshold rejection", &colorThreshold, 0.001f, 1.0f);
 
 	if (ImGui::IsItemEdited())

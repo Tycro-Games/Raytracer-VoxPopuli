@@ -285,6 +285,46 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 	}
 }
 
+void Scene::GenerateSomeSmoke(float frequency = 0.03f)
+{
+	ResetGrid();
+	//from https://github.com/Auburn/FastNoise2/wiki/3:-Getting-started-using-FastNoise2
+
+	const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
+
+
+	// Create an array of floats to store the noise output in
+	std::vector<float> noiseOutput(GRIDSIZE3);
+	fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
+
+
+	for (uint32_t z = 0; z < WORLDSIZE; z++)
+	{
+		for (uint32_t y = 0; y < WORLDSIZE; y++)
+		{
+			for (uint32_t x = 0; x < WORLDSIZE; x++)
+			{
+				const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+				// Sample noise from pre-generated vector
+				MaterialType::MatType color = MaterialType::NONE;
+
+
+				if (n <= 0.04f)
+				{
+					color = MaterialType::NONE;
+				}
+				else if (n < 0.08)
+				{
+					color = MaterialType::SMOKE;
+				}
+
+
+				Set(x, y, z, color); // Assuming Set function is defined elsewhere
+			}
+		}
+	}
+}
+
 void Scene::ResetGrid(MaterialType::MatType type)
 {
 	std::fill(grid.begin(), grid.end(), type);
@@ -336,8 +376,11 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
 	ResetGrid(MaterialType::NONE);
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	if (worldSize > 1)
+	if (worldSize > 1 && RandomFloat() > 0.3f)
 		GenerateSomeNoise();
+	else
+		GenerateSomeSmoke();
+
 	//CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
 }
 
@@ -554,6 +597,72 @@ bool Scene::FindNearest(Ray& ray) const
 }
 
 bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
+{
+	//TODO maybe try to move this
+	// setup Amanatides & Woo grid traversal
+	DDAState s;
+	if (!Setup3DDDA(ray, s))
+	{
+		// proceed with traversal
+
+		return false;
+	}
+	// start stepping
+	while (1)
+	{
+		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+		if (cell != matType)
+		{
+			ray.t = s.t;
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.indexMaterial = cell;
+			return true;
+		}
+		if (s.tmax.x < s.tmax.y)
+		{
+			if (s.tmax.x < s.tmax.z)
+			{
+				s.t = s.tmax.x, s.X += s.step.x;
+				if (s.X >= GRIDSIZE) break;
+				s.tmax.x += s.tdelta.x;
+			}
+			else
+			{
+				s.t = s.tmax.z, s.Z += s.step.z;
+				if (s.Z >= GRIDSIZE) break;
+				s.tmax.z += s.tdelta.z;
+			}
+		}
+		else
+		{
+			if (s.tmax.y < s.tmax.z)
+			{
+				s.t = s.tmax.y, s.Y += s.step.y;
+				if (s.Y >= GRIDSIZE) break;
+				s.tmax.y += s.tdelta.y;
+			}
+			else
+			{
+				s.t = s.tmax.z, s.Z += s.step.z;
+				if (s.Z >= GRIDSIZE) break;
+				s.tmax.z += s.tdelta.z;
+			}
+		}
+	}
+
+	ray.t = s.t;
+	//ray.rayNormal = ray.GetNormalVoxel();
+
+	// TODO:
+	// - A nested grid will let rays skip empty space much faster.
+	// - Coherent rays can traverse the grid faster together.
+	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+	// - Loop-unrolling may speed up the while loop.
+	// - This code can be ported to GPU.
+	return false;
+}
+
+bool Scene::FindSmokeExit(Ray& ray, MaterialType::MatType matType) const
 {
 	//TODO maybe try to move this
 	// setup Amanatides & Woo grid traversal

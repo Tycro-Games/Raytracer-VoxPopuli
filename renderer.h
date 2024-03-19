@@ -37,9 +37,10 @@ namespace Tmpl8
 		__m128 FastReciprocal(__m128& x);
 		__m128 SlowReciprocal(__m128& dirSSE);
 		void TransformPositionAndDirection_SSE(__m128& oriSSE, __m128& dirSSE, const mat4& invMat, Ray& ray);
-		void FindNearest(Ray& ray);
+		int32_t FindNearest(Ray& ray);
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
+		float3 Absorption(float3& color, float intensity, float distanceTraveled);
 		float SchlickReflectanceNonMetal(const float cosine);
 		float CalculateDistanceToPlane(const float3& point, const float3& normal, const float3& pointOnPlane);
 		float3 CalculatePlaneNormal(const float3& point1, const float3& point2, const float3& point3);
@@ -102,7 +103,6 @@ namespace Tmpl8
 		// data members
 		int2 mousePos;
 		int32_t maxBounces = 5;
-		int32_t maxRayPerPixel = 1;
 		float weight = .10f;
 		bool staticCamera = true;
 		float4* accumulator;
@@ -115,10 +115,11 @@ namespace Tmpl8
 		float radiusEmissiveSphere = 1.0f;
 		float colorThreshold = .1f;
 		//materials
-		std::vector<shared_ptr<Material>> metalMaterials;
-		std::vector<shared_ptr<Material>> nonMetalMaterials;
-		std::vector<shared_ptr<Material>> dielectricsMaterials;
-		std::vector<shared_ptr<Material>> emissiveMaterials;
+		std::vector<shared_ptr<Material>> metalMaterials; //0 10
+		std::vector<shared_ptr<Material>> nonMetalMaterials; //11 20
+		std::vector<shared_ptr<Material>> dielectricsMaterials; //21 30
+		std::vector<shared_ptr<Material>> smokeMaterials; //31 40
+		std::vector<shared_ptr<Material>> emissiveMaterials; //41 50
 		//all materials
 		std::vector<shared_ptr<Material>> materials;
 
@@ -138,7 +139,7 @@ namespace Tmpl8
 		std::vector<Triangle> triangles;
 		std::vector<Scene> voxelVolumes;
 
-		int matTypeSphere = MaterialType::GLASS;
+		int matTypeSphere = MaterialType::SMOKE;
 		//BVH
 		BasicBVH bvh;
 

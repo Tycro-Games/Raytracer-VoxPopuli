@@ -38,24 +38,27 @@ float3 Ray::ComputeDsign(const float3& _D) const
 
 float3 Ray::ComputeDsign_SSE(const __m128& m) const
 {
-	//__m128i dirSSE = _mm_castps_si128(m);
-	//dirSSE = _mm_srli_epi32(dirSSE, 31);
-	//const __m128 signs = _mm_cvtepi32_ps(dirSSE);
-	////multiply by two substract 1
-	//__m128 result = _mm_sub_ps(_mm_mul_ps(signs, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-	////add one and multiply by 0.5
-	//const __m128 one = _mm_set1_ps(1.0f);
-	//const __m128 point5 = _mm_set1_ps(.5f);
-	//result = _mm_add_ps(result, one);
+	__m128i dirSSE = _mm_castps_si128(m);
+	dirSSE = _mm_srli_epi32(dirSSE, 31);
+	const __m128 signs = _mm_cvtepi32_ps(dirSSE);
+	//multiply by two substract 1
+	__m128 result = _mm_sub_ps(_mm_mul_ps(signs, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+	//add one and multiply by 0.5
+	const __m128 one = _mm_set1_ps(1.0f);
+	const __m128 point5 = _mm_set1_ps(.5f);
+	result = _mm_add_ps(result, one);
 
-	//result = _mm_mul_ps(result, point5);
-	//Max told me to do this, because it is just easier
-	__m128i signs = _mm_srli_epi32((__m128i&)m, 31);
+	result = _mm_mul_ps(result, point5);
+	////Max told me to do this, because it is just easier
+	//__m128i signs = _mm_srli_epi32((__m128i&)m, 31);
 
 
+	//return {
+	//	static_cast<float>(signs.m128i_u32[0]), static_cast<float>(signs.m128i_u32[1]),
+	//	static_cast<float>(signs.m128i_u32[2])
 	return {
-		static_cast<float>(signs.m128i_u32[0]), static_cast<float>(signs.m128i_u32[1]),
-		static_cast<float>(signs.m128i_u32[2])
+		(result.m128_f32[0]), (result.m128_f32[1]),
+		(result.m128_f32[2])
 	};
 }
 
@@ -98,7 +101,7 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 //#endif
 //}
 //added comments with chatGPT
-float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& /*invMatrix*/) const
+float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const
 {
 	// Calculate the intersection point
 	const float3 I1 = IntersectionPoint() * static_cast<float>(worldSize);
@@ -330,11 +333,12 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
 	//sets the cube
 	grid.resize(GRIDSIZE3);
 	SetCubeBoundaries(position);
-	ResetGrid(MaterialType::NON_METAL_BLUE);
+	ResetGrid(MaterialType::NONE);
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	if (worldSize > 1)
-		GenerateSomeNoise();
+	/*if (worldSize > 1)
+		GenerateSomeNoise();*/
+	CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
 }
 
 
@@ -487,14 +491,14 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 	return true;
 }
 
-void Scene::FindNearest(Ray& ray) const
+bool Scene::FindNearest(Ray& ray) const
 {
 	// setup Amanatides & Woo grid traversal
 	DDAState s;
 
 	if (!Setup3DDDA(ray, s))
 	{
-		return;
+		return false;
 	}
 	// start stepping
 	while (s.t < ray.t)
@@ -504,70 +508,8 @@ void Scene::FindNearest(Ray& ray) const
 		{
 			ray.t = s.t;
 
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix, cube.invMatrix);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
 
-			ray.indexMaterial = cell;
-			break;
-		}
-		if (s.tmax.x < s.tmax.y)
-		{
-			if (s.tmax.x < s.tmax.z)
-			{
-				s.t = s.tmax.x, s.X += s.step.x;
-				if (s.X >= GRIDSIZE) break;
-				s.tmax.x += s.tdelta.x;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-		else
-		{
-			if (s.tmax.y < s.tmax.z)
-			{
-				s.t = s.tmax.y, s.Y += s.step.y;
-				if (s.Y >= GRIDSIZE) break;
-				s.tmax.y += s.tdelta.y;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-	}
-
-	// TODO:
-	// - A nested grid will let rays skip empty space much faster.
-	// - Coherent rays can traverse the grid faster together.
-	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
-	// - Loop-unrolling may speed up the while loop.
-	// - This code can be ported to GPU.
-}
-
-bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
-{
-	//TODO maybe try to move this
-	// setup Amanatides & Woo grid traversal
-	DDAState s;
-	if (!Setup3DDDA(ray, s))
-	{
-		// proceed with traversal
-
-		return false;
-	}
-	// start stepping
-	while (1)
-	{
-		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != matType)
-		{
-			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix, cube.invMatrix);
 			ray.indexMaterial = cell;
 			return true;
 		}
@@ -602,9 +544,70 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 			}
 		}
 	}
-	ray.O = ray.O + ray.D * s.t;
-	ray.t = 0;
+	return false;
+	// TODO:
+	// - A nested grid will let rays skip empty space much faster.
+	// - Coherent rays can traverse the grid faster together.
+	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+	// - Loop-unrolling may speed up the while loop.
+	// - This code can be ported to GPU.
+}
 
+bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
+{
+	//TODO maybe try to move this
+	// setup Amanatides & Woo grid traversal
+	DDAState s;
+	if (!Setup3DDDA(ray, s))
+	{
+		// proceed with traversal
+
+		return false;
+	}
+	// start stepping
+	while (1)
+	{
+		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+		if (cell != matType)
+		{
+			ray.t = s.t;
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.indexMaterial = cell;
+			return true;
+		}
+		if (s.tmax.x < s.tmax.y)
+		{
+			if (s.tmax.x < s.tmax.z)
+			{
+				s.t = s.tmax.x, s.X += s.step.x;
+				if (s.X >= GRIDSIZE) break;
+				s.tmax.x += s.tdelta.x;
+			}
+			else
+			{
+				s.t = s.tmax.z, s.Z += s.step.z;
+				if (s.Z >= GRIDSIZE) break;
+				s.tmax.z += s.tdelta.z;
+			}
+		}
+		else
+		{
+			if (s.tmax.y < s.tmax.z)
+			{
+				s.t = s.tmax.y, s.Y += s.step.y;
+				if (s.Y >= GRIDSIZE) break;
+				s.tmax.y += s.tdelta.y;
+			}
+			else
+			{
+				s.t = s.tmax.z, s.Z += s.step.z;
+				if (s.Z >= GRIDSIZE) break;
+				s.tmax.z += s.tdelta.z;
+			}
+		}
+	}
+
+	ray.t = s.t;
 	//ray.rayNormal = ray.GetNormalVoxel();
 
 	// TODO:

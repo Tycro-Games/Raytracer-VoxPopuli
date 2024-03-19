@@ -18,18 +18,15 @@ namespace Tmpl8
 // low-level / derived
 //#define WORLDSIZE2	(WORLDSIZE*WORLDSIZE)
 //#ifdef TWOLEVEL
+
 //// feel free to replace with whatever suits your two-level implementation,
 //// should you chose this challenge.
 //#define BRICKSIZE	8
 //#define BRICKSIZE2	(BRICKSIZE*BRICKSIZE)
 //#define BRICKSIZE3	(BRICKSIZE*BRICKSIZE*BRICKSIZE)
 //#define GRIDSIZE	(WORLDSIZE/BRICKSIZE)
-//#define VOXELSIZE	(1.0f/WORLDSIZE)
-//#else
-//#define GRIDSIZE	WORLDSIZE
-//#endif
-//#define GRIDSIZE2	(GRIDSIZE*GRIDSIZE)
-//#define GRIDSIZE3	(GRIDSIZE*GRIDSIZE*GRIDSIZE)
+
+
 /* 3D coordinate to morton code. */
 constexpr uint64_t BMI_3D_X_MASK = 0x9249249249249249;
 constexpr uint64_t BMI_3D_Y_MASK = 0x2492492492492492;
@@ -49,6 +46,7 @@ namespace MaterialType
 		METAL_MID,
 		METAL_LOW,
 		GLASS,
+		SMOKE,
 		EMISSIVE,
 		NONE = 256
 	};
@@ -77,7 +75,7 @@ namespace Tmpl8
 		//from Ray tracing in one weekend
 		static Ray GetRefractedRay(const Ray& ray, const float IORRatio, bool& isReflected);
 
-		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& matrix, const mat4& invMatrix) const;
+		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const;
 		float3 UintToFloat3(uint col) const;
 		float3 GetAlbedo(const Renderer& scene) const;
 		float GetEmissive(const Renderer& scene) const;
@@ -153,7 +151,7 @@ namespace Tmpl8
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
 		Scene(const float3& position, uint32_t worldSize = 64);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
-		void FindNearest(Ray& ray) const;
+		bool FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
 		// morton order from Coppen, Max (230184)
 

@@ -67,9 +67,9 @@
 
 void Renderer::InitMultithreading()
 {
-	//#ifdef 	PROFILE
-	//	SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
-	//#endif
+#ifdef 	PROFILE
+	SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
+#endif
 
 	const auto numThreads = thread::hardware_concurrency();
 	cout << "Number of threads: " << numThreads << '\n';
@@ -304,6 +304,9 @@ void Renderer::MaterialSetUp()
 	//partial mirror
 	const auto glass = make_shared<Material>(float3(1, 1, 1));
 	glass->IOR = 1.45f;
+	const auto smoke = make_shared<Material>(float3(1, 1, 0.35f));
+	smoke->IOR = 1.0f;
+	smoke->emissiveStrength = 8.0f;
 	const auto emissive = make_shared<Material>(float3(1, 0, 0));
 	emissive->emissiveStrength = 5.0f;
 
@@ -318,6 +321,7 @@ void Renderer::MaterialSetUp()
 	metalMaterials.push_back(materialDifRefLow);
 
 	dielectricsMaterials.push_back(glass);
+	smokeMaterials.push_back(smoke);
 	emissiveMaterials.push_back(emissive);
 
 	for (auto& mat : nonMetalMaterials)
@@ -325,6 +329,8 @@ void Renderer::MaterialSetUp()
 	for (auto& mat : metalMaterials)
 		materials.push_back(mat);
 	for (auto& mat : dielectricsMaterials)
+		materials.push_back(mat);
+	for (auto& mat : smokeMaterials)
 		materials.push_back(mat);
 	for (auto& mat : emissiveMaterials)
 		materials.push_back(mat);
@@ -368,9 +374,9 @@ void Renderer::RemoveVoxelVolume()
 void Renderer::AddVoxelVolume()
 {
 	voxelVolumes.emplace_back(Scene({0}));
-	const float3 rot = float3{15.0f, 0.0f, 0.0f};
-	voxelVolumes[0].cube.rotation = rot;
-	voxelVolumes[0].SetTransform(rot * DEG2RAD);
+	//const float3 rot = float3{15.0f, 0.0f, 0.0f};
+	//voxelVolumes[0].cube.rotation = rot;
+	//voxelVolumes[0].SetTransform(rot * DEG2RAD);
 }
 
 void Renderer::ShapesSetUp()
@@ -378,7 +384,7 @@ void Renderer::ShapesSetUp()
 	//AddSphere();
 	AddVoxelVolume();
 	constexpr int sizeX = 6;
-	constexpr int sizeY = 1;
+	constexpr int sizeY = 5;
 	constexpr int sizeZ = 2;
 	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
 	for (int i = 0; i < sizeX; i++)
@@ -488,7 +494,7 @@ float3 Renderer::Refract(const float3 direction, const float3 normal, const floa
 __m128 Renderer::FastReciprocal(__m128& x)
 {
 	__m128 res = _mm_rcp_ps(x);
-	__m128 muls = _mm_mul_ps(x, _mm_mul_ps(res, res));
+	const __m128 muls = _mm_mul_ps(x, _mm_mul_ps(res, res));
 	return res = _mm_sub_ps(_mm_add_ps(res, res), muls);
 }
 
@@ -497,16 +503,17 @@ __m128 Renderer::SlowReciprocal(__m128& dirSSE)
 	return _mm_div_ps(_mm_set_ps1(1.0f), dirSSE);
 }
 
-void Renderer::FindNearest(Ray& ray)
+int32_t Renderer::FindNearest(Ray& ray)
 {
-	for (auto& scene : voxelVolumes)
+	int32_t voxelIndex = -1;
+	for (uint32_t i = 0; i < voxelVolumes.size(); i++)
 
 	{
 		Ray backupRay = ray;
 
 		float3 origin = ray.O;
 		float3 dir = ray.D;
-		mat4 invMat = scene.cube.invMatrix;
+		mat4 invMat = voxelVolumes[i].cube.invMatrix;
 #ifdef SIMD
 		__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
 		__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
@@ -539,7 +546,10 @@ void Renderer::FindNearest(Ray& ray)
 		ray.Dsign = ray.ComputeDsign(ray.D);
 #endif
 
-		scene.FindNearest(ray);
+		/*	if (voxelVolumes[i].FindNearest(ray))
+			{
+				voxelIndex = i;
+			}*/
 		backupRay.t = ray.t;
 		backupRay.CopyToPrevRay(ray);
 	}
@@ -563,8 +573,10 @@ void Renderer::FindNearest(Ray& ray)
 			ray.indexMaterial = sphereHit.indexMaterial;
 			ray.rayNormal = sphereHit.rayNormal;
 			ray.isInsideGlass = sphereHit.isInsideGlass;
+			voxelIndex = -1;
 		}
 	}
+	return voxelIndex;
 }
 
 // -----------------------------------------------------------
@@ -579,7 +591,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	//Find nearest BVH
 
 
-	FindNearest(ray);
+	int32_t voxIndex = FindNearest(ray);
 
 
 	//evaluate materials and trace again for reflections and refraction
@@ -654,10 +666,13 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			{
 				color = ray.GetAlbedo(*this);
 				//only the first one has glass
-				isInsideVolume = voxelVolumes[0].FindMaterialExit(ray, MaterialType::GLASS);
+				isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::GLASS);
 			}
 			if (!isInsideVolume)
-				return SampleSky(ray.D);
+			{
+				ray.O = ray.O + ray.D * ray.t;
+				ray.t = 0;
+			}
 
 			float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
 			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
@@ -667,6 +682,62 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 resultingDirection;
 
 			//this may be negative if we refract
+			float3 resultingNormal;
+			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
+			{
+				//reflect!
+				resultingDirection = Reflect(ray.D, ray.rayNormal);
+				resultingNormal = ray.rayNormal;
+			}
+			else
+			{
+				//we are exiting or entering the glass
+				resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
+				isInGlass = !isInGlass;
+				resultingNormal = -ray.rayNormal;
+			}
+
+			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
+			newRay.isInsideGlass = isInGlass;
+
+
+			return Trace(newRay, depth - 1) * color;
+		}
+	//from Erik Cupak
+	case MaterialType::SMOKE:
+		{
+			float3 color{1.0f};
+			//code for glass
+			bool isInGlass = ray.isInsideGlass;
+			float IORMaterial = ray.GetRefractivity(*this); //1
+			//get the IOR
+			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
+			//we need to get to the next voxel
+			bool isInsideVolume = true;
+			if (isInGlass)
+			{
+				color = ray.GetAlbedo(*this);
+				float intensity = ray.GetEmissive(*this);
+				//only the first one has glass
+				isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::SMOKE);
+				float newT = ray.t; // *static_cast<float>(voxelVolumes[voxIndex].GRIDSIZE);
+				//return (newT)*;
+				color = Absorption(color, intensity, (newT));
+			}
+			if (!isInsideVolume)
+			{
+				ray.O = ray.O + ray.D * ray.t;
+				ray.t = 0;
+			}
+
+			float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
+			float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+			bool cannotRefract = refractionRatio * sinTheta > 1.0f;
+
+			float3 resultingDirection;
+
+			////this may be negative if we refract
 			float3 resultingNormal;
 			if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
 			{
@@ -708,6 +779,20 @@ float Renderer::SchlickReflectance(const float cosine, const float indexOfRefrac
 	auto r0 = (1 - indexOfRefraction) / (1 + indexOfRefraction);
 	r0 = r0 * r0;
 	return r0 + (1 - r0) * powf((1 - cosine), 5);
+}
+
+float3 Renderer::Absorption(float3& color, float intensity, float distanceTraveled)
+{
+	// Combining 'e' and 'c' terms into a single "density" value (stored as intensity in the material).
+	// [Credit] https://www.flipcode.com/archives/Raytracing_Topics_Techniques-Part_3_Refractions_and_Beers_Law.shtml
+	const float3 flipped_color{1.0f - color};
+	const float3 exponent{
+		-distanceTraveled
+		* intensity
+		* flipped_color
+	};
+
+	return {expf(exponent.x), expf(exponent.y), expf(exponent.z)};
 }
 
 //From Remi
@@ -770,21 +855,21 @@ void Renderer::Update()
 			newPixel = Trace(primaryRay, maxBounces);
 			float4 pixel = newPixel;
 
-			////use this for reprojection?
-			const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
-			if (IsValid(previousPixelCoordinate) && !staticCamera)
-			{
-				float4 previousFrameColor = SamplePreviousFrameColor(
-					previousPixelCoordinate);
+			//////use this for reprojection?
+			//const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
+			//if (IsValid(previousPixelCoordinate) && !staticCamera)
+			//{
+			//	float4 previousFrameColor = SamplePreviousFrameColor(
+			//		previousPixelCoordinate);
 
 
-				/*         if (staticCamera)
-							 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
-				//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
-				const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
-				                                       1.0f - weight);
-				pixel = blendedColor;
-			}
+			//	/*         if (staticCamera)
+			//				 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
+			//	//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
+			//	const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
+			//	                                       1.0f - weight);
+			//	pixel = blendedColor;
+			//}
 
 			if (staticCamera)
 			{
@@ -832,14 +917,13 @@ void Renderer::Tick(const float deltaTime)
 	const Timer t;
 
 	//DOF from Remi
-	if (camera.defocusJitter > 0.0f)
-	{
-		Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
-		for (auto& scene : voxelVolumes)
-			scene.FindNearest(focusRay);
 
-		camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
-	}
+	Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
+	for (auto& scene : voxelVolumes)
+		scene.FindNearest(focusRay);
+
+	camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
+
 
 	Update();
 
@@ -1150,13 +1234,13 @@ void Renderer::HandleImguiCamera()
 		ResetAccumulator();
 	}
 
-	ImGui::SliderInt("Max Rays per Pixel", &maxRayPerPixel, 1, 200);
+	/*ImGui::SliderInt("Max Rays per Pixel", &maxRayPerPixel, 1, 200);
 
 	if (ImGui::IsItemEdited())
 
 	{
 		ResetAccumulator();
-	}
+	}*/
 
 	ImGui::SliderFloat("DOF strength", &camera.defocusJitter, 0.0f, 50.0f);
 
@@ -1212,7 +1296,7 @@ void Renderer::MaterialEdit(int index, vector<shared_ptr<Material>>::value_type&
 	{
 		ResetAccumulator();
 	}
-	ImGui::SliderFloat(("IOR :" + to_string(index)).c_str(), &material->IOR, 1.0f,
+	ImGui::SliderFloat(("IOR :" + to_string(index)).c_str(), &material->IOR, 0.0f,
 
 	                   2.4f);
 	if (ImGui::IsItemEdited())
@@ -1262,6 +1346,16 @@ void Renderer::HandleImguiMaterials()
 
 	{
 		for (auto& material : dielectricsMaterials)
+
+		{
+			MaterialEdit(index, material);
+			index++;
+		}
+	}
+	if (ImGui::CollapsingHeader("Smoke"))
+
+	{
+		for (auto& material : smokeMaterials)
 
 		{
 			MaterialEdit(index, material);

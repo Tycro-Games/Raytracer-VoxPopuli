@@ -304,7 +304,7 @@ void Renderer::MaterialSetUp()
 	//partial mirror
 	const auto glass = make_shared<Material>(float3(1, 1, 1));
 	glass->IOR = 1.45f;
-	float3 smokeColor = float3{.2f};
+	float3 smokeColor = float3{1.0f, 0.8f, 0.0f};
 
 	const auto smoke = make_shared<Material>(smokeColor);
 	smoke->IOR = 1.0f;
@@ -525,22 +525,20 @@ __m128 Renderer::SlowReciprocal(__m128& dirSSE)
 int32_t Renderer::FindNearest(Ray& ray)
 {
 	int32_t voxelIndex = -1;
-	Ray backupRay = ray;
 
-	float3 origin = ray.O;
-	float3 dir = ray.D;
-#ifdef SIMD
-	__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
-	__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
-#endif
-
-	for (uint32_t i = 0; i < voxelVolumes.size(); i++)
+	int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
+	for (int32_t i = 0; i < voxelCount; i++)
 
 	{
+		Ray backupRay = ray;
+
+		float3 origin = ray.O;
+		float3 dir = ray.D;
 		mat4 invMat = voxelVolumes[i].cube.invMatrix;
 #ifdef SIMD
 
-
+		__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
+		__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
 		ray.O = TransformPosition_SSE(oriSSE, invMat);
 
 		ray.D = TransformVector_SSE(dirSSE, invMat);
@@ -880,50 +878,50 @@ void Renderer::Update()
 	         {
 #endif
 
-		const uint32_t pitch = y * SCRWIDTH;
-		for (uint32_t x = 0; x < SCRWIDTH; x++)
-		{
-			float3 newPixel{0};
+		         const uint32_t pitch = y * SCRWIDTH;
+		         for (uint32_t x = 0; x < SCRWIDTH; x++)
+		         {
+			         float3 newPixel{0};
 
 
-			//AA
-			const float randomXDir = RandomFloat() * antiAliasingStrength;
-			const float randomYDir = RandomFloat() * antiAliasingStrength;
+			         //AA
+			         const float randomXDir = RandomFloat() * antiAliasingStrength;
+			         const float randomYDir = RandomFloat() * antiAliasingStrength;
 
-			Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-			                                      static_cast<float>(y) + randomYDir);
-			//get new pixel
-			newPixel = Trace(primaryRay, maxBounces);
-			float4 pixel = newPixel;
+			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+			                                               static_cast<float>(y) + randomYDir);
+			         //get new pixel
+			         newPixel = Trace(primaryRay, maxBounces);
+			         float4 pixel = newPixel;
 
-			//////use this for reprojection?
-			//const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
-			//if (IsValid(previousPixelCoordinate) && !staticCamera)
-			//{
-			//	float4 previousFrameColor = SamplePreviousFrameColor(
-			//		previousPixelCoordinate);
+			         //////use this for reprojection?
+			         //const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
+			         //if (IsValid(previousPixelCoordinate) && !staticCamera)
+			         //{
+			         //	float4 previousFrameColor = SamplePreviousFrameColor(
+			         //		previousPixelCoordinate);
 
 
-			//	/*         if (staticCamera)
-			//				 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
-			//	//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
-			//	const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
-			//	                                       1.0f - weight);
-			//	pixel = blendedColor;
-			//}
+			         //	/*         if (staticCamera)
+			         //				 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
+			         //	//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
+			         //	const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
+			         //	                                       1.0f - weight);
+			         //	pixel = blendedColor;
+			         //}
 
-			if (staticCamera)
-			{
-				weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-				pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
-			}
-			//display
-			accumulator[x + pitch] = pixel;
+			         if (staticCamera)
+			         {
+				         weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+				         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			         }
+			         //display
+			         accumulator[x + pitch] = pixel;
 
-			pixel = ApplyReinhardJodie(pixel);
+			         pixel = ApplyReinhardJodie(pixel);
 
-			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		}
+			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+		         }
 #ifdef PROFILE
 	}
 #else

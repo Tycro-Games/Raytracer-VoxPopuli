@@ -308,14 +308,13 @@ void Scene::GenerateSomeSmoke(float frequency = 0.001f)
 				float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
 				MaterialType::MatType color = MaterialType::NONE;
 				const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
-				//with chatGPT
-				// Define the center of the ellipsoid
+
 				const float3 center{
 					static_cast<float>(WORLDSIZE) / 2.0f, static_cast<float>(WORLDSIZE) / 2.0f,
 					static_cast<float>(WORLDSIZE) / 2.0f
 				};
 
-				// Define the dimensions of the ellipsoid
+				//Elipse like shape
 				float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
 				                                        static_cast<float>(WORLDSIZE) / 2.0f);
 				float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
@@ -324,12 +323,10 @@ void Scene::GenerateSomeSmoke(float frequency = 0.001f)
 					randomX, WORLDSIZE / 3.0f,
 					randomZ
 				};
-				// Adjust these values as needed
 
-				// Calculate the distance from the center of the ellipsoid
 				const float3 distance = (point - center) / (dimensions);
 				const float distanceSquared = dot(distance, distance);
-				// Check if the point is inside the ellipsoid
+				//Denser smoke towards the center
 				if (n - distanceSquared < 0.04f || distanceSquared > 1.5f)
 				{
 					color = MaterialType::NONE;

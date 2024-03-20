@@ -9,7 +9,7 @@ namespace Tmpl8
 // #define TWOLEVEL
 //#define USE_MORTON 
 //constexpr uint32_t WORLDSIZE = 128; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
-#define SIMD	 //slower in release??
+//#define SIMD	 //slower in release??
 // #define USE_FMA3
 // #define SKYDOME
 // #define WHITTED

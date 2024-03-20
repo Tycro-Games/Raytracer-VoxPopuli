@@ -46,7 +46,11 @@ namespace MaterialType
 		METAL_MID,
 		METAL_LOW,
 		GLASS,
-		SMOKE,
+		SMOKE_LOW_DENSITY,
+		SMOKE_LOW2_DENSITY,
+		SMOKE_MID_DENSITY,
+		SMOKE_MID2_DENSITY,
+		SMOKE_HIGH_DENSITY,
 		EMISSIVE,
 		NONE = 256
 	};
@@ -154,7 +158,7 @@ namespace Tmpl8
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		bool FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
-		bool FindSmokeExit(Ray& ray, MaterialType::MatType matType) const;
+		bool FindSmokeExit(Ray& ray) const;
 		// morton order from Coppen, Max (230184)
 
 

@@ -145,6 +145,11 @@ float Rand(float range)
 	return RandomFloat() * range;
 }
 
+float Rand(float min, float max)
+{
+	return min + RandomFloat() * (max - min);
+}
+
 // Calculate a random number based on a specific seed
 uint RandomUInt(uint& customSeed)
 {

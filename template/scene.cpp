@@ -285,12 +285,13 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 	}
 }
 
-void Scene::GenerateSomeSmoke(float frequency = 0.03f)
+void Scene::GenerateSomeSmoke(float frequency = 0.001f)
 {
 	ResetGrid();
 	//from https://github.com/Auburn/FastNoise2/wiki/3:-Getting-started-using-FastNoise2
 
 	const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
+	const auto fnFractal = FastNoise::New<FastNoise::FractalFBm>();
 
 
 	// Create an array of floats to store the noise output in
@@ -304,18 +305,54 @@ void Scene::GenerateSomeSmoke(float frequency = 0.03f)
 		{
 			for (uint32_t x = 0; x < WORLDSIZE; x++)
 			{
-				const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
-				// Sample noise from pre-generated vector
+				float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
 				MaterialType::MatType color = MaterialType::NONE;
+				const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
+				//with chatGPT
+				// Define the center of the ellipsoid
+				const float3 center{
+					static_cast<float>(WORLDSIZE) / 2.0f, static_cast<float>(WORLDSIZE) / 2.0f,
+					static_cast<float>(WORLDSIZE) / 2.0f
+				};
 
+				// Define the dimensions of the ellipsoid
+				float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
+				                                        static_cast<float>(WORLDSIZE) / 2.0f);
+				float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
+				                                        static_cast<float>(WORLDSIZE) / 2.0f);
+				const float3 dimensions{
+					randomX, WORLDSIZE / 3.0f,
+					randomZ
+				};
+				// Adjust these values as needed
 
-				if (n <= 0.04f)
+				// Calculate the distance from the center of the ellipsoid
+				const float3 distance = (point - center) / (dimensions);
+				const float distanceSquared = dot(distance, distance);
+				// Check if the point is inside the ellipsoid
+				if (n - distanceSquared < 0.04f || distanceSquared > 1.5f)
 				{
 					color = MaterialType::NONE;
 				}
-				else if (n < 0.08)
+				else if (n < 0.3f)
 				{
-					color = MaterialType::SMOKE;
+					color = MaterialType::SMOKE_HIGH_DENSITY;
+				}
+				else if (n < 0.4f)
+				{
+					color = MaterialType::SMOKE_MID2_DENSITY;
+				}
+				else if (n < 0.6f)
+				{
+					color = MaterialType::SMOKE_MID_DENSITY;
+				}
+				else if (n < 0.7f)
+				{
+					color = MaterialType::SMOKE_LOW2_DENSITY;
+				}
+				else if (n < 1.0f)
+				{
+					color = MaterialType::SMOKE_LOW_DENSITY;
 				}
 
 
@@ -662,7 +699,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 	return false;
 }
 
-bool Scene::FindSmokeExit(Ray& ray, MaterialType::MatType matType) const
+bool Scene::FindSmokeExit(Ray& ray) const
 {
 	//TODO maybe try to move this
 	// setup Amanatides & Woo grid traversal
@@ -677,9 +714,12 @@ bool Scene::FindSmokeExit(Ray& ray, MaterialType::MatType matType) const
 	while (1)
 	{
 		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != matType)
+		if (cell != MaterialType::SMOKE_HIGH_DENSITY && cell != MaterialType::SMOKE_LOW2_DENSITY && cell !=
+			MaterialType::SMOKE_LOW_DENSITY && cell != MaterialType::SMOKE_MID2_DENSITY && cell !=
+			MaterialType::SMOKE_MID_DENSITY)
 		{
 			ray.t = s.t;
+
 			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
 			ray.indexMaterial = cell;
 			return true;

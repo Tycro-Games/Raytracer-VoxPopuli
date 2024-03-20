@@ -304,11 +304,25 @@ void Renderer::MaterialSetUp()
 	//partial mirror
 	const auto glass = make_shared<Material>(float3(1, 1, 1));
 	glass->IOR = 1.45f;
-	const auto smoke = make_shared<Material>(float3(1, 0, 1));
+	float3 smokeColor = float3{.2f};
+
+	const auto smoke = make_shared<Material>(smokeColor);
 	smoke->IOR = 1.0f;
 	smoke->emissiveStrength = 8.0f;
-	smoke->roughness = 1.0f;
-	const auto emissive = make_shared<Material>(float3(1, 0, 0));
+	const auto smoke1 = make_shared<Material>(smokeColor);
+	smoke1->IOR = 1.0f;
+	smoke1->emissiveStrength = 12.0f;
+	const auto smoke2 = make_shared<Material>(smokeColor);
+	smoke2->IOR = 1.0f;
+	smoke2->emissiveStrength = 15.0f;
+	const auto smoke3 = make_shared<Material>(smokeColor);
+	smoke3->IOR = 1.0f;
+	smoke3->emissiveStrength = 20.0f;
+	const auto smoke4 = make_shared<Material>(smokeColor);
+	smoke4->IOR = 1.0f;
+	smoke4->emissiveStrength = 22.0f;
+
+	const auto emissive = make_shared<Material>(smokeColor);
 	emissive->emissiveStrength = 5.0f;
 
 	nonMetalMaterials.push_back(materialDifWhite);
@@ -323,6 +337,10 @@ void Renderer::MaterialSetUp()
 
 	dielectricsMaterials.push_back(glass);
 	smokeMaterials.push_back(smoke);
+	smokeMaterials.push_back(smoke1);
+	smokeMaterials.push_back(smoke2);
+	smokeMaterials.push_back(smoke3);
+	smokeMaterials.push_back(smoke4);
 	emissiveMaterials.push_back(emissive);
 
 	for (auto& mat : nonMetalMaterials)
@@ -593,7 +611,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 
 	int32_t voxIndex = FindNearest(ray);
-
+	//return { 0 };
 
 	//evaluate materials and trace again for reflections and refraction
 
@@ -705,7 +723,11 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			return Trace(newRay, depth - 1) * color;
 		}
 	//from Erik Cupak
-	case MaterialType::SMOKE:
+	case MaterialType::SMOKE_LOW_DENSITY:
+	case MaterialType::SMOKE_LOW2_DENSITY:
+	case MaterialType::SMOKE_MID_DENSITY:
+	case MaterialType::SMOKE_MID2_DENSITY:
+	case MaterialType::SMOKE_HIGH_DENSITY:
 		{
 			float3 color{1.0f};
 			//code for glass
@@ -717,15 +739,38 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			bool isInsideVolume = true;
 			float intensity = 0;
 			float distanceTraveled = 0;
+
 			if (isInGlass)
 			{
 				color = ray.GetAlbedo(*this);
 				intensity = ray.GetEmissive(*this);
 				//only the first one has glass
-				isInsideVolume = voxelVolumes[voxIndex].FindSmokeExit(ray, MaterialType::SMOKE);
+				Ray backupRay = ray;
+
+				float3 origin = ray.O;
+				float3 dir = ray.D;
+				mat4 invMat = voxelVolumes[voxIndex].cube.invMatrix;
+				ray.O = TransformPosition(ray.O, invMat);
+
+
+				ray.D = TransformVector(ray.D, invMat);
+
+				ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+				ray.Dsign = ray.ComputeDsign(ray.D);
+				isInsideVolume = voxelVolumes[voxIndex].FindSmokeExit(ray);
+				backupRay.t = ray.t;
+				backupRay.CopyToPrevRay(ray);
 				distanceTraveled = ray.t;
 			}
+			//simple density functions
+			float threshold = RandomFloat() * 100 - intensity;
+			if (RandomFloat() * distanceTraveled > threshold)
+			{
+				ray.O = ray.O + ray.D * Rand(ray.t);
 
+				ray.D = RandomDirection();
+				ray.t = 0;
+			}
 			color = Absorption(color, intensity, distanceTraveled);
 
 			if (!isInsideVolume)
@@ -739,7 +784,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			//this may be negative if we refract
 			float3 resultingNormal;
 
-			//we are exiting or entering the glass
+
 			resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
 			isInGlass = !isInGlass;
 			resultingNormal = -ray.rayNormal;
@@ -782,8 +827,8 @@ float3 Renderer::Absorption(const float3& color, float intensity, float distance
 		-distanceTraveled
 		* intensity
 		* flipped_color
+
 	};
-	//exponent = exponent * 10.0f;
 	return {expf(exponent.x), expf(exponent.y), expf(exponent.z)};
 }
 
@@ -976,6 +1021,10 @@ void Renderer::MouseDown(int button)
 
 float3 Renderer::SampleSky(const float3& direction) const
 {
+	if (!activateSky)
+	{
+		return {0.392f, 0.584f, 0.829f};
+	}
 	// Sample sky
 	const float uFloat = static_cast<float>(skyWidth) * atan2_approximation2(direction.z, direction.x) * INV2PI
 		- 0.5f;
@@ -1212,6 +1261,13 @@ void Renderer::HandleImguiCamera()
 	}
 
 	ImGui::SliderFloat("HDR contribution", &HDRLightContribution, 0.1f, 10.0f);
+
+	if (ImGui::IsItemEdited())
+
+	{
+		ResetAccumulator();
+	}
+	ImGui::Checkbox("Activate sky", &activateSky);
 
 	if (ImGui::IsItemEdited())
 
@@ -1503,6 +1559,14 @@ void Renderer::HandleImguiVoxelVolumes()
 
 		{
 			scene.GenerateSomeNoise(frqGenerationPerlinNoise);
+			ResetAccumulator();
+		}
+		ImGui::SliderFloat(("Perlin frq smoke" + to_string(i)).c_str(), &frqGenerationPerlinNoise, 0.001f, .5f);
+
+		if (ImGui::IsItemEdited())
+
+		{
+			scene.GenerateSomeSmoke(frqGenerationPerlinNoise);
 			ResetAccumulator();
 		}
 		std::vector<const char*> cStr; // ImGui needs const char* array

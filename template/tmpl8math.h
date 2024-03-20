@@ -394,6 +394,9 @@ float2 RandomPointInCircle();
 float RandomFloat(uint& seed);
 float Rand(float range);
 
+float Rand(float min, float max);
+
+
 // math
 inline float fminf(const float a, const float b)
 {

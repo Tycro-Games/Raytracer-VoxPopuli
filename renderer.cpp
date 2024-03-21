@@ -526,34 +526,37 @@ int32_t Renderer::FindNearest(Ray& ray)
 {
 	int32_t voxelIndex = -1;
 
+#if 0
+	float3 origin = ray.O;
+	float3 dir = ray.D;
+	__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
+	__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
+#endif
+
 	int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
 	for (int32_t i = 0; i < voxelCount; i++)
 
 	{
 		Ray backupRay = ray;
 
-		float3 origin = ray.O;
-		float3 dir = ray.D;
-		mat4 invMat = voxelVolumes[i].cube.invMatrix;
-#ifdef SIMD
 
-		__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
-		__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
+		mat4 invMat = voxelVolumes[i].cube.invMatrix;
+#if 0
 		ray.O = TransformPosition_SSE(oriSSE, invMat);
 
 		ray.D = TransformVector_SSE(dirSSE, invMat);
 		dir = ray.D;
-		dirSSE = _mm_set_ps(0.0f, dir.z, dir.y, dir.x);
+		__m128 newDirSSE = _mm_set_ps(0.0f, dir.z, dir.y, dir.x);
 		//for my machine the fast reciprocal is a bit slower
 
 #if 1
-		__m128 rDSSE = SlowReciprocal(dirSSE);
+		__m128 rDSSE = SlowReciprocal(newDirSSE);
 #else
 		__m128 rDSSE = FastReciprocal(dirSSE);
 
 #endif
 
-		ray.Dsign = ray.ComputeDsign_SSE(dirSSE);
+		ray.Dsign = ray.ComputeDsign_SSE(newDirSSE);
 
 		ray.rD = float3{rDSSE.m128_f32[0], rDSSE.m128_f32[1], rDSSE.m128_f32[2]};
 

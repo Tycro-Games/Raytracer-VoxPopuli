@@ -138,7 +138,7 @@ void main()
 	window = glfwCreateWindow( SCRWIDTH, SCRHEIGHT, "Tmpl8RT", glfwGetPrimaryMonitor(), 0 );
 #else
 #ifdef DOUBLESIZE
-	window = glfwCreateWindow(SCRWIDTH * 2, SCRHEIGHT * 2, "Tmpl8RT", 0, 0);
+	window = glfwCreateWindow(SCRWIDTH * 4, SCRHEIGHT * 4, "Tmpl8RT", 0, 0);
 #else
 	window = glfwCreateWindow(SCRWIDTH, SCRHEIGHT, "Tmpl8RT", 0, 0);
 #endif
@@ -232,12 +232,12 @@ void main()
 		"uniform sampler2D c; in vec2 uv; out vec4 f;			\n"
 		"#define SCRWIDTH             							\n"
 		"#define SCRHEIGHT             							\n"
-		"#define MASK_INTENSITY 0.5								\n"
+		"#define MASK_INTENSITY 0.0								\n"
 		"#define InputGamma		2.4								\n"
 		"#define OutputGamma	2.2								\n"
 		"#define BRIGHTBOOST	1.5								\n"
-		"#define SCANLINES		0.72							\n"
-		"#define SHARPER		0								\n"
+		"#define SCANLINES		0.22							\n"
+		"#define SHARPER		1								\n"
 		"#define GAMMA_IN(color)  pow(color, vec3(InputGamma, InputGamma, InputGamma)) \n"
 		"#define GAMMA_OUT(color) pow(color, vec3(1.0 / OutputGamma, 1.0 / OutputGamma, 1.0 / OutputGamma)) \n"
 		"void main(){											\n"

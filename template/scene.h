@@ -123,12 +123,6 @@ namespace Tmpl8
 		float3 scale{1};
 		mat4 invMatrix;
 		mat4 matrix;
-
-		void Grow(float3 p)
-		{
-			b[0] = fminf(b[0], p);
-			b[1] = fmaxf(b[1], p);
-		}
 	};
 
 	class Scene
@@ -155,12 +149,13 @@ namespace Tmpl8
 		void CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere);
 		void ResetGrid(MaterialType::MatType type = MaterialType::NONE);
 		Scene(const float3& position, uint32_t worldSize = 64);
+		Scene(uint32_t worldSize = 64);
 		void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
 		bool FindNearest(Ray& ray) const;
 		bool FindMaterialExit(Ray& ray, MaterialType::MatType matType) const;
 		bool FindSmokeExit(Ray& ray) const;
 		// morton order from Coppen, Max (230184)
-
+		float3 GetCenter();
 
 		inline uint64_t MortonEncode(const uint32_t x, const uint32_t y, const uint32_t z) const
 		{
@@ -180,15 +175,18 @@ namespace Tmpl8
 
 		bool IsOccluded(Ray& ray) const;
 		void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);
-		const uint32_t WORLDSIZE; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
-		const uint32_t GRIDSIZE;
-		const uint32_t GRIDSIZE2;
-		const uint32_t GRIDSIZE3;
+		void SetWorldSize(const uint32_t size);
+		uint32_t WORLDSIZE; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
+		uint32_t GRIDSIZE;
+		uint32_t GRIDSIZE2;
+		uint32_t GRIDSIZE3;
 
 		/* 3D coordinate to morton code. */
 		std::vector<MaterialType::MatType> grid{};
-
+		float3 centroid{0};
 		float3 scaleModel{1.0f};
+		uint32_t index = 0;
+		bool flag = false;
 		Cube cube;
 
 	private:

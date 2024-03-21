@@ -1,12 +1,6 @@
 #pragma once
 //following this tutorial: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
-struct Tri
-{
-	float3 vertex0, vertex1, vertex2;
-	float3 centroid;
-};
-
-static constexpr int countTri = 64;
+static constexpr int countVoxel = 2;
 
 struct BVHNode
 {
@@ -22,19 +16,21 @@ struct BVHNode
 class BasicBVH
 {
 public:
+	void UpdateBounds();
 	BasicBVH();
-	void IntersectTri(Ray& ray, const Tri& _tri);
+	static void Grow(float3 p, float3& bmin, float3& bmax);
+	void SetTransform(mat4& invTransform, uint32_t id);
 
 
 	bool IntersectAABB(const Ray& ray, float3 bmin, float3 bmax);
-	void IntersectBVH(Ray& ray, uint nodeIdx);
+	void IntersectBVH(Ray& ray, const uint nodeIdx, int32_t& idVolume);
 	void BuildBVH();
 	void UpdateNodeBounds(uint nodeIdx);
 	void Subdivide(uint nodeIdx);
-	Tri tri[countTri];
-	uint triIdx[countTri];
-	BVHNode bvhNode[countTri * 2 - 1];
-	uint rootNodeIdx = 0, nodesUsed = 1;
+	std::array<Scene, countVoxel> voxelVolumes;
+	uint32_t voxIdx[countVoxel];
+	BVHNode bvhNode[countVoxel * 2 - 1];
+	uint32_t rootNodeIdx = 0, nodesUsed = 1;
 
 private:
 };

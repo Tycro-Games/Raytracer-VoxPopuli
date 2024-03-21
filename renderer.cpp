@@ -203,7 +203,7 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightD
 
 bool Renderer::IsOccluded(Ray& ray) const
 {
-	for (auto& scene : voxelVolumes)
+	for (auto& scene : bvh.voxelVolumes)
 	{
 		Ray backupRay = ray;
 		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
@@ -387,12 +387,12 @@ void Renderer::RemoveTriangle()
 
 void Renderer::RemoveVoxelVolume()
 {
-	voxelVolumes.pop_back();
+	//voxelVolumes.pop_back();
 }
 
 void Renderer::AddVoxelVolume()
 {
-	voxelVolumes.emplace_back(Scene({0}));
+	//voxelVolumes.emplace_back(Scene({0}));
 	//const float3 rot = float3{15.0f, 0.0f, 0.0f};
 	//voxelVolumes[0].cube.rotation = rot;
 	//voxelVolumes[0].SetTransform(rot * DEG2RAD);
@@ -402,22 +402,22 @@ void Renderer::ShapesSetUp()
 {
 	//AddSphere();
 	AddVoxelVolume();
-	constexpr int sizeX = 6;
-	constexpr int sizeY = 1;
-	constexpr int sizeZ = 2;
-	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
-	for (int i = 0; i < sizeX; i++)
-	{
-		for (int j = 0; j < sizeY; j++)
-		{
-			for (int k = 1; k < sizeZ; k++)
-			{
-				const int index = (k + i + j) % powersTwo.size();
-				voxelVolumes.emplace_back(Scene({static_cast<float>(i), static_cast<float>(j), static_cast<float>(k)},
-				                                powersTwo[index]));
-			}
-		}
-	}
+	//constexpr int sizeX = 6;
+	//constexpr int sizeY = 1;
+	//constexpr int sizeZ = 2;
+	//const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
+	//for (int i = 0; i < sizeX; i++)
+	//{
+	//	for (int j = 0; j < sizeY; j++)
+	//	{
+	//		for (int k = 1; k < sizeZ; k++)
+	//		{
+	//			const int index = (k + i + j) % powersTwo.size();
+	//			voxelVolumes.emplace_back(Scene({static_cast<float>(i), static_cast<float>(j), static_cast<float>(k)},
+	//			                                powersTwo[index]));
+	//		}
+	//	}
+	//}
 }
 
 void Renderer::Init()
@@ -526,6 +526,9 @@ int32_t Renderer::FindNearest(Ray& ray)
 {
 	int32_t voxelIndex = -1;
 
+	bvh.IntersectBVH(ray, 0, voxelIndex);
+
+#if 0
 	int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
 	for (int32_t i = 0; i < voxelCount; i++)
 
@@ -574,6 +577,7 @@ int32_t Renderer::FindNearest(Ray& ray)
 		backupRay.t = ray.t;
 		backupRay.CopyToPrevRay(ray);
 	}
+#endif
 
 	//get the nearest t
 	{
@@ -687,7 +691,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			{
 				color = ray.GetAlbedo(*this);
 				//only the first one has glass
-				isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::GLASS);
+				isInsideVolume = bvh.voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::GLASS);
 			}
 			if (!isInsideVolume)
 			{
@@ -751,7 +755,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 				float3 origin = ray.O;
 				float3 dir = ray.D;
-				mat4 invMat = voxelVolumes[voxIndex].cube.invMatrix;
+				mat4 invMat = bvh.voxelVolumes[voxIndex].cube.invMatrix;
 				ray.O = TransformPosition(ray.O, invMat);
 
 
@@ -759,7 +763,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 				ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 				ray.Dsign = ray.ComputeDsign(ray.D);
-				isInsideVolume = voxelVolumes[voxIndex].FindSmokeExit(ray);
+				isInsideVolume = bvh.voxelVolumes[voxIndex].FindSmokeExit(ray);
 				backupRay.t = ray.t;
 				backupRay.CopyToPrevRay(ray);
 				distanceTraveled = ray.t;
@@ -958,7 +962,7 @@ void Renderer::Tick(const float deltaTime)
 	//DOF from Remi
 
 	Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
-	for (auto& scene : voxelVolumes)
+	for (auto& scene : bvh.voxelVolumes)
 		scene.FindNearest(focusRay);
 
 	camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
@@ -1537,7 +1541,7 @@ void Renderer::HandleImguiVoxelVolumes()
 		cStrVoxFiles.push_back(file.c_str());
 	}
 
-	for (auto& scene : voxelVolumes)
+	for (auto& scene : bvh.voxelVolumes)
 	{
 		if (ImGui::Button(("Generate new Sphere emissive" + to_string(i)).c_str()))
 
@@ -1627,6 +1631,7 @@ void Renderer::HandleImguiVoxelVolumes()
 
 			rot *= DEG2RAD;
 			scene.SetTransform(rot);
+			bvh.UpdateBounds();
 			ResetAccumulator();
 		}
 

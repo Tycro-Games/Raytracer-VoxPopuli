@@ -144,7 +144,7 @@ using namespace Tmpl8;
 //materials
 #include "Materials/Material.h"
 //bvh
-#include "BVH/BasicBVH.h"
+//#include "BVH/BasicBVH.h"
 
 // fatal error reporting (with a pretty window)
 #define FATALERROR( fmt, ... ) FatalError( "Error on line %d of %s: " fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__ )
@@ -453,6 +453,7 @@ public:
 #include "BVH/Shapes.h"
 
 #include "scene.h"
+#include "BVH/BasicBVH.h"
 #include "camera.h"
 #include "renderer.h"
 

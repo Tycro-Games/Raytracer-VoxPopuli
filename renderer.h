@@ -137,7 +137,7 @@ namespace Tmpl8
 		std::vector<std::string> voxFiles;
 		std::vector<Sphere> spheres;
 		std::vector<Triangle> triangles;
-		std::vector<Scene> voxelVolumes;
+		//std::vector<Scene> voxelVolumes;
 		bool activateSky = true;
 		int matTypeSphere = MaterialType::SMOKE_LOW_DENSITY;
 		//BVH

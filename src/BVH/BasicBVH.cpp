@@ -1,36 +1,67 @@
 #include "precomp.h"
 #include "BasicBVH.h"
 
-BasicBVH::BasicBVH()
+void BasicBVH::UpdateBounds()
 {
-	for (int i = 0; i < countTri; i++)
+	for (auto& voxelVolume : voxelVolumes)
 	{
-		float3 r0(RandomFloat(), RandomFloat(), RandomFloat());
-		float3 r1(RandomFloat(), RandomFloat(), RandomFloat());
-		float3 r2(RandomFloat(), RandomFloat(), RandomFloat());
-		tri[i].vertex0 = r0 * 9 - float3(5);
-		tri[i].vertex1 = tri[i].vertex0 + r1;
-		tri[i].vertex2 = tri[i].vertex0 + r2;
+		if (voxelVolume.flag)
+		{
+			voxelVolume.flag = false;
+			SetTransform(voxelVolume.cube.invMatrix, voxelVolume.index);
+		}
 	}
-	BuildBVH();
 }
 
-void BasicBVH::IntersectTri(Ray& ray, const Tri& _tri)
+BasicBVH::BasicBVH()
 {
-	const float3 edge1 = _tri.vertex1 - _tri.vertex0;
-	const float3 edge2 = _tri.vertex2 - _tri.vertex0;
-	const float3 h = cross(ray.D, edge2);
-	const float a = dot(edge1, h);
-	if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
-	const float f = 1 / a;
-	const float3 s = ray.O - _tri.vertex0;
-	const float u = f * dot(s, h);
-	if (u < 0 || u > 1) return;
-	const float3 q = cross(s, edge1);
-	const float v = f * dot(ray.D, q);
-	if (v < 0 || u + v > 1) return;
-	const float t = f * dot(edge2, q);
-	if (t > 0.0001f) ray.t = min(ray.t, t);
+	constexpr int sizeX = 2;
+	constexpr int sizeY = 1;
+	constexpr int sizeZ = 1;
+	int id = 0;
+	const array powersTwo = {64, 2, 4, 8, 16, 32, 64};
+	for (int i = 0; i < sizeX; i++)
+	{
+		for (int j = 0; j < sizeY; j++)
+		{
+			for (int k = 0; k < sizeZ; k++)
+			{
+				const int index = (k + i + j) % powersTwo.size();
+				voxelVolumes[id].cube.position = float3{
+					static_cast<float>(i), static_cast<float>(j), static_cast<float>(k)
+				};
+
+				voxelVolumes[id].SetWorldSize(powersTwo[index]);
+
+				voxelVolumes[id].GenerateSomeNoise(0.03f);
+				voxelVolumes[id].SetTransform(float3{0});
+
+				id++;
+			}
+		}
+	}
+	BuildBVH();
+	UpdateBounds();
+}
+
+void BasicBVH::Grow(float3 p, float3& bmin, float3& bmax)
+{
+	bmin = fminf(bmin, p);
+	bmax = fmaxf(bmax, p);
+}
+
+void BasicBVH::SetTransform(mat4& invTransform, uint32_t id)
+{
+	// calculate world-space bounds using the new matrix
+	BVHNode& node = bvhNode[id];
+	float3 bmin = node.aabbMin, bmax = node.aabbMax;
+	node.aabbMin = float3(1e30f);
+	node.aabbMax = float3(-1e30f);
+	for (int i = 0; i < 8; i++)
+		Grow((TransformPosition(float3(i & 1 ? bmax.x : bmin.x,
+		                               i & 2 ? bmax.y : bmin.y, i & 4 ? bmax.z : bmin.z), invTransform.Inverted())),
+		     node.aabbMin,
+		     node.aabbMax);
 }
 
 bool BasicBVH::IntersectAABB(const Ray& ray, const float3 bmin, const float3 bmax)
@@ -44,33 +75,47 @@ bool BasicBVH::IntersectAABB(const Ray& ray, const float3 bmin, const float3 bma
 	return tmax >= tmin && tmin < ray.t && tmax > 0;
 }
 
-void BasicBVH::IntersectBVH(Ray& ray, const uint nodeIdx)
+void BasicBVH::IntersectBVH(Ray& ray, const uint nodeIdx, int32_t& idVolume)
 {
 	BVHNode& node = bvhNode[nodeIdx];
-	if (!IntersectAABB(ray, node.aabbMin, node.aabbMax)) return;
+	if (!IntersectAABB(ray, node.aabbMin, node.aabbMax))
+		return;
 	if (node.isLeaf())
 	{
 		for (uint i = 0; i < node.triCount; i++)
-			IntersectTri(ray, tri[triIdx[node.leftFirst + i]]);
+		{
+			const int32_t index = voxIdx[node.leftFirst + i];
+
+			/*	Ray backupRay = ray;
+				mat4 invTransform = voxelVolumes[voxIdx[index]].cube.invMatrix;
+				ray.O = TransformPosition(ray.O, invTransform);
+				ray.D = TransformVector(ray.D, invTransform);
+				ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+				ray.Dsign = ray.ComputeDsign(ray.D);*/
+
+			if (voxelVolumes[voxIdx[index]].FindNearest(ray))
+				idVolume = index;
+			/*backupRay.t = ray.t;
+			ray = backupRay;*/
+		}
 	}
 	else
 	{
-		IntersectBVH(ray, node.leftFirst);
-		IntersectBVH(ray, node.leftFirst + 1);
+		IntersectBVH(ray, node.leftFirst, idVolume);
+		IntersectBVH(ray, node.leftFirst + 1, idVolume);
 	}
 }
 
 void BasicBVH::BuildBVH()
 {
-	for (int i = 0; i < countTri; i++)
-		triIdx[i] = i;
+	for (int i = 0; i < countVoxel; i++)
+		voxIdx[i] = i;
 
-	for (int i = 0; i < countTri; i++)
-		tri[i].centroid =
-			(tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
+	for (int i = 0; i < countVoxel; i++)
+		voxelVolumes[i].centroid = voxelVolumes[i].GetCenter();
 	// assign all triangles to root node
 	BVHNode& root = bvhNode[rootNodeIdx];
-	root.leftFirst = 0, root.triCount = countTri;
+	root.leftFirst = 0, root.triCount = countVoxel;
 
 	UpdateNodeBounds(rootNodeIdx);
 	// subdivide recursively
@@ -84,14 +129,11 @@ void BasicBVH::UpdateNodeBounds(uint nodeIdx)
 	node.aabbMax = float3(-1e30f);
 	for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
 	{
-		uint leafTriIdx = triIdx[first + i];
-		Tri& leafTri = tri[leafTriIdx];
-		node.aabbMin = fminf(node.aabbMin, leafTri.vertex0),
-			node.aabbMin = fminf(node.aabbMin, leafTri.vertex1),
-			node.aabbMin = fminf(node.aabbMin, leafTri.vertex2),
-			node.aabbMax = fmaxf(node.aabbMax, leafTri.vertex0),
-			node.aabbMax = fmaxf(node.aabbMax, leafTri.vertex1),
-			node.aabbMax = fmaxf(node.aabbMax, leafTri.vertex2);
+		uint leafTriIdx = voxIdx[first + i];
+		Scene& leafTri = voxelVolumes[leafTriIdx];
+		float3 position = leafTri.cube.position;
+		node.aabbMin = fminf(node.aabbMin, leafTri.cube.b[0]),
+			node.aabbMax = fmaxf(node.aabbMax, leafTri.cube.b[1]);
 	}
 }
 
@@ -99,7 +141,11 @@ void BasicBVH::Subdivide(uint nodeIdx)
 {
 	// terminate recursion
 	BVHNode& node = bvhNode[nodeIdx];
-	if (node.triCount <= 2) return;
+	if (node.triCount <= 1)
+	{
+		voxelVolumes[node.leftFirst].index = nodeIdx;
+		return;
+	}
 	// determine split axis and position
 	float3 extent = node.aabbMax - node.aabbMin;
 	int axis = 0;
@@ -111,10 +157,10 @@ void BasicBVH::Subdivide(uint nodeIdx)
 	int j = i + node.triCount - 1;
 	while (i <= j)
 	{
-		if (tri[triIdx[i]].centroid[axis] < splitPos)
+		if (voxelVolumes[voxIdx[i]].centroid[axis] < splitPos)
 			i++;
 		else
-			swap(triIdx[i], triIdx[j--]);
+			swap(voxIdx[i], voxIdx[j--]);
 	}
 	// abort split if one of the sides is empty
 	int leftCount = i - node.leftFirst;

@@ -397,6 +397,7 @@ void Scene::SetTransform(const float3& rotation)
 
 
 	cube.invMatrix = (mat4::Identity() * translateToPivot * rot * scale * translateBack).Inverted();
+	flag = true;
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -416,6 +417,18 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
 		GenerateSomeSmoke();
 
 	//CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
+}
+
+Scene::Scene(uint32_t worldSize) :
+	WORLDSIZE(worldSize), GRIDSIZE(worldSize),
+	GRIDSIZE2(worldSize * worldSize),
+	GRIDSIZE3(worldSize * worldSize * worldSize)
+{
+	grid.resize(GRIDSIZE3);
+	if (worldSize > 1 && RandomFloat() > 0.3f)
+		GenerateSomeNoise();
+	else
+		GenerateSomeSmoke();
 }
 
 
@@ -533,6 +546,25 @@ void Scene::CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissive
 void Scene::Set(const uint x, const uint y, const uint z, const MaterialType::MatType v)
 {
 	grid[GetVoxel(x, y, z)] = v;
+}
+
+void Scene::SetWorldSize(const uint32_t size)
+{
+	WORLDSIZE = size;
+	GRIDSIZE = size;
+	GRIDSIZE2 = size * size;
+	GRIDSIZE3 = size * size * size;
+	grid.resize(GRIDSIZE3);
+	ResetGrid();
+	//sets the cube
+	SetCubeBoundaries({0});
+	ResetGrid(MaterialType::NONE);
+	// initialize the mainScene using Perlin noise, parallel over z
+	//LoadModel("assets/teapot.vox");
+	if (WORLDSIZE > 1 && RandomFloat() > 0.3f)
+		GenerateSomeNoise();
+	else
+		GenerateSomeSmoke();
 }
 
 //This changes to any position now
@@ -763,6 +795,11 @@ bool Scene::FindSmokeExit(Ray& ray) const
 	// - Loop-unrolling may speed up the while loop.
 	// - This code can be ported to GPU.
 	return false;
+}
+
+float3 Scene::GetCenter()
+{
+	return cube.position + (cube.b[1] + cube.b[0]) * 0.5f;
 }
 
 

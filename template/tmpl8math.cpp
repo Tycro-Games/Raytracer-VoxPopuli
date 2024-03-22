@@ -360,6 +360,19 @@ float3 TransformPosition_SSE(const __m128& a, const mat4& M)
 	return float3(v.m128_f32[0], v.m128_f32[1], v.m128_f32[2]);
 }
 
+__m128 TransformPosition_SSEM(const __m128& a, const mat4& M)
+{
+	__m128 a4 = a;
+	a4.m128_f32[3] = 1;
+	__m128 v0 = _mm_mul_ps(a4, _mm_load_ps(&M.cell[0]));
+	__m128 v1 = _mm_mul_ps(a4, _mm_load_ps(&M.cell[4]));
+	__m128 v2 = _mm_mul_ps(a4, _mm_load_ps(&M.cell[8]));
+	__m128 v3 = _mm_mul_ps(a4, _mm_load_ps(&M.cell[12]));
+	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
+	__m128 v = _mm_add_ps(_mm_add_ps(v0, v1), _mm_add_ps(v2, v3));
+	return v;
+}
+
 float3 TransformVector_SSE(const __m128& a, const mat4& M)
 {
 	__m128 v0 = _mm_mul_ps(a, _mm_load_ps(&M.cell[0]));
@@ -369,6 +382,17 @@ float3 TransformVector_SSE(const __m128& a, const mat4& M)
 	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
 	__m128 v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
 	return float3(v.m128_f32[0], v.m128_f32[1], v.m128_f32[2]);
+}
+
+__m128 TransformVector_SSEM(const __m128& a, const mat4& M)
+{
+	__m128 v0 = _mm_mul_ps(a, _mm_load_ps(&M.cell[0]));
+	__m128 v1 = _mm_mul_ps(a, _mm_load_ps(&M.cell[4]));
+	__m128 v2 = _mm_mul_ps(a, _mm_load_ps(&M.cell[8]));
+	__m128 v3 = _mm_mul_ps(a, _mm_load_ps(&M.cell[12]));
+	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
+	__m128 v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
+	return v;
 }
 
 //from https://gist.github.com/volkansalma/2972237

@@ -206,9 +206,9 @@ bool Renderer::IsOccluded(Ray& ray) const
 	for (auto& scene : voxelVolumes)
 	{
 		Ray backupRay = ray;
-		ray.O = TransformPosition(ray.O, scene.cube.invMatrix);
+		ray.O = TransformPosition(ray.O, scene.invMatrix);
 
-		ray.D = TransformVector(ray.D, scene.cube.invMatrix);
+		ray.D = TransformVector(ray.D, scene.invMatrix);
 
 		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
 		ray.Dsign = ray.ComputeDsign(ray.D);
@@ -524,13 +524,12 @@ __m128 Renderer::SlowReciprocal(__m128& dirSSE)
 
 int32_t Renderer::FindNearest(Ray& ray)
 {
-	int32_t voxelIndex = -1;
+	int32_t voxelIndex = -2;
 
-#if 0
-	float3 origin = ray.O;
-	float3 dir = ray.D;
-	__m128 oriSSE = _mm_set_ps(0, origin.z, origin.y, origin.x);
-	__m128 dirSSE = _mm_set_ps(0, dir.z, dir.y, dir.x);
+#if 1
+
+	__m128 oriSSE = ray.O4;
+	__m128 dirSSE = ray.D4;
 #endif
 
 	int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
@@ -540,25 +539,24 @@ int32_t Renderer::FindNearest(Ray& ray)
 		Ray backupRay = ray;
 
 
-		mat4 invMat = voxelVolumes[i].cube.invMatrix;
-#if 0
-		ray.O = TransformPosition_SSE(oriSSE, invMat);
+		mat4 invMat = voxelVolumes[i].invMatrix;
+#if 1
+		ray.O4 = TransformPosition_SSEM(oriSSE, invMat);
 
-		ray.D = TransformVector_SSE(dirSSE, invMat);
-		dir = ray.D;
-		__m128 newDirSSE = _mm_set_ps(0.0f, dir.z, dir.y, dir.x);
+		ray.D4 = TransformVector_SSEM(dirSSE, invMat);
+
 		//for my machine the fast reciprocal is a bit slower
 
-#if 1
-		__m128 rDSSE = SlowReciprocal(newDirSSE);
+#if 0
+		__m128 rDSSE = SlowReciprocal(ray.D4);
 #else
-		__m128 rDSSE = FastReciprocal(dirSSE);
+		__m128 rDSSE = FastReciprocal(ray.D4);
 
 #endif
 
-		ray.Dsign = ray.ComputeDsign_SSE(newDirSSE);
+		ray.Dsign = ray.ComputeDsign_SSE(ray.D4);
 
-		ray.rD = float3{rDSSE.m128_f32[0], rDSSE.m128_f32[1], rDSSE.m128_f32[2]};
+		ray.rD4 = rDSSE;
 
 #else
 		ray.O = TransformPosition(ray.O, invMat);
@@ -579,27 +577,27 @@ int32_t Renderer::FindNearest(Ray& ray)
 	}
 
 	//get the nearest t
-	{
-		Ray sphereHit{ray.O, ray.D};
+	//{
+	//	Ray sphereHit{ray.O, ray.D};
 
-		for (auto& sphere : spheres)
-		{
-			sphere.Hit(sphereHit);
-		}
-		for (auto& triangle : triangles)
-		{
-			triangle.Hit(sphereHit);
-		}
-		//change to the closest ray information
-		if (ray.t > sphereHit.t)
-		{
-			ray.t = sphereHit.t;
-			ray.indexMaterial = sphereHit.indexMaterial;
-			ray.rayNormal = sphereHit.rayNormal;
-			ray.isInsideGlass = sphereHit.isInsideGlass;
-			voxelIndex = -1;
-		}
-	}
+	//	for (auto& sphere : spheres)
+	//	{
+	//		sphere.Hit(sphereHit);
+	//	}
+	//	for (auto& triangle : triangles)
+	//	{
+	//		triangle.Hit(sphereHit);
+	//	}
+	//	//change to the closest ray information
+	//	if (ray.t > sphereHit.t)
+	//	{
+	//		ray.t = sphereHit.t;
+	//		ray.indexMaterial = sphereHit.indexMaterial;
+	//		ray.rayNormal = sphereHit.rayNormal;
+	//		ray.isInsideGlass = sphereHit.isInsideGlass;
+	//		voxelIndex = -1;
+	//	}
+	//}
 	return voxelIndex;
 }
 
@@ -628,9 +626,6 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 	//return .5f * (ray.rayNormal + 1);
 
-	const float3 intersectionPoint = ray.IntersectionPoint();
-	//return intersectionPoint;
-	Ray newRay;
 
 	switch (ray.indexMaterial)
 	{
@@ -639,9 +634,10 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::METAL_HIGH:
 	case MaterialType::METAL_LOW:
 		{
+			Ray newRay;
 			float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 			newRay = Ray{
-				OffsetRay(intersectionPoint, ray.rayNormal),
+				OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
 				reflectedDirection + ray.GetRoughness(*this) * RandomSphereSample()
 			};
 			return Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
@@ -654,13 +650,14 @@ float3 Renderer::Trace(Ray& ray, int depth)
 	case MaterialType::NON_METAL_BLUE:
 	case MaterialType::NON_METAL_GREEN:
 		{
+			Ray newRay;
 			float3 color{0};
 			if (RandomFloat() > SchlickReflectanceNonMetal(dot(-ray.D, ray.rayNormal)))
 			{
 				float3 incLight{0};
 				float3 randomDirection = RandomLambertianReflectionVector(ray.rayNormal);
 				Illumination(ray, incLight);
-				newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
+				newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
 				color += incLight;
 				color += Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
 			}
@@ -668,7 +665,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			{
 				float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 				newRay = Ray{
-					OffsetRay(intersectionPoint, ray.rayNormal),
+					OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
 					reflectedDirection + ray.GetRoughness(*this) * RandomSphereSample()
 				};
 				color = Trace(newRay, depth - 1);
@@ -720,7 +717,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 				isInGlass = !isInGlass;
 				resultingNormal = -ray.rayNormal;
 			}
-
+			Ray newRay;
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
 
@@ -754,7 +751,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 				float3 origin = ray.O;
 				float3 dir = ray.D;
-				mat4 invMat = voxelVolumes[voxIndex].cube.invMatrix;
+				mat4 invMat = voxelVolumes[voxIndex].invMatrix;
 				ray.O = TransformPosition(ray.O, invMat);
 
 
@@ -794,7 +791,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			isInGlass = !isInGlass;
 			resultingNormal = -ray.rayNormal;
 
-
+			Ray newRay;
 			newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
 			newRay.isInsideGlass = isInGlass;
 
@@ -809,7 +806,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		float3 incLight{0};
 		float3 randomDirection = DiffuseReflection(ray.rayNormal);
 		Illumination(ray, incLight);
-		newRay = Ray{OffsetRay(intersectionPoint, ray.rayNormal), randomDirection};
+		Ray newRay;
+
+		newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
 		return Trace(newRay, depth - 1) * ray.GetAlbedo(*this) + incLight;
 	}
 }
@@ -871,7 +870,9 @@ void Renderer::Update()
 {
 	//do only once
 	//c++ 17 onwards parallel for loop
-
+	weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
+	static __m256 weightSSE = _mm256_set1_ps(weight);
+	static __m256 antiAliasingStrengthSSE = _mm256_set1_ps(antiAliasingStrength);
 #ifdef PROFILE
 	for (uint32_t y = 0; y < SCRHEIGHT; y++)
 	{
@@ -882,6 +883,117 @@ void Renderer::Update()
 #endif
 
 		         const uint32_t pitch = y * SCRWIDTH;
+#if 1
+		         __m256 ySSE = _mm256_set1_ps(static_cast<float>(y));
+		         //avx2 
+		         for (uint32_t x = 0; x < SCRWIDTH; x += 8)
+		         {
+			         /* float3 newPixel{0};
+			          float3 newPixel1{0};
+			          float3 newPixel2{0};
+			          float3 newPixel3{0};
+			          float3 newPixel4{0};
+			          float3 newPixel5{0};
+			          float3 newPixel6{0};
+			          float3 newPixel7{0};*/
+			         __m256 xSSE = _mm256_set_ps(static_cast<float>(x + 7), static_cast<float>(x + 6),
+			                                     static_cast<float>(x + 5),
+			                                     static_cast<float>(x + 4), static_cast<float>(x + 3),
+			                                     static_cast<float>(x + 2), static_cast<float>(x + 1),
+			                                     static_cast<float>(x));
+
+
+			         __m256 randomXDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
+			                                              RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
+			         __m256 randomYDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
+			                                              RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
+			         randomXDirSSE = _mm256_mul_ps(randomXDirSSE, antiAliasingStrengthSSE);
+			         randomYDirSSE = _mm256_mul_ps(randomYDirSSE, antiAliasingStrengthSSE);
+			         ////AA
+			         //float randomXDir = RandomFloat() * antiAliasingStrength;
+			         //float randomYDir = RandomFloat() * antiAliasingStrength;
+			         randomXDirSSE = _mm256_add_ps(randomXDirSSE, xSSE);
+			         randomYDirSSE = _mm256_add_ps(randomYDirSSE, ySSE);
+			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+			                                               static_cast<float>(y) + randomYDir);
+			         //get new pixel
+
+
+			         Ray primaryRay1 = camera.GetPrimaryRay(static_cast<float>(x + 1) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+			         Ray primaryRay2 = camera.GetPrimaryRay(static_cast<float>(x + 2) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+			         Ray primaryRay3 = camera.GetPrimaryRay(static_cast<float>(x + 3) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+
+			         Ray primaryRay4 = camera.GetPrimaryRay(static_cast<float>(x + 4) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+			         Ray primaryRay5 = camera.GetPrimaryRay(static_cast<float>(x + 5) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+			         Ray primaryRay6 = camera.GetPrimaryRay(static_cast<float>(x + 6) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+			         Ray primaryRay7 = camera.GetPrimaryRay(static_cast<float>(x + 7) + randomXDir,
+			                                                static_cast<float>(y) + randomYDir);
+
+
+			         newPixel = Trace(primaryRay, maxBounces);
+			         newPixel1 = Trace(primaryRay1, maxBounces);
+			         newPixel2 = Trace(primaryRay2, maxBounces);
+			         newPixel3 = Trace(primaryRay3, maxBounces);
+			         newPixel4 = Trace(primaryRay4, maxBounces);
+			         newPixel5 = Trace(primaryRay5, maxBounces);
+			         newPixel6 = Trace(primaryRay6, maxBounces);
+			         newPixel7 = Trace(primaryRay7, maxBounces);
+
+			         float4 pixel = newPixel;
+			         float4 pixel1 = newPixel1;
+			         float4 pixel2 = newPixel2;
+			         float4 pixel3 = newPixel3;
+			         float4 pixel4 = newPixel4;
+			         float4 pixel5 = newPixel5;
+			         float4 pixel6 = newPixel6;
+			         float4 pixel7 = newPixel7;
+
+
+			         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			         pixel1 = BlendColor(pixel1, accumulator[x + 1 + pitch], 1.0f - weight);
+			         pixel2 = BlendColor(pixel2, accumulator[x + 2 + pitch], 1.0f - weight);
+			         pixel3 = BlendColor(pixel3, accumulator[x + 3 + pitch], 1.0f - weight);
+			         pixel4 = BlendColor(pixel4, accumulator[x + 4 + pitch], 1.0f - weight);
+			         pixel5 = BlendColor(pixel5, accumulator[x + 5 + pitch], 1.0f - weight);
+			         pixel6 = BlendColor(pixel6, accumulator[x + 6 + pitch], 1.0f - weight);
+			         pixel7 = BlendColor(pixel7, accumulator[x + 7 + pitch], 1.0f - weight);
+
+			         //display
+			         accumulator[x + pitch] = pixel;
+			         accumulator[x + 1 + pitch] = pixel1;
+			         accumulator[x + 2 + pitch] = pixel2;
+			         accumulator[x + 3 + pitch] = pixel3;
+			         accumulator[x + 4 + pitch] = pixel4;
+			         accumulator[x + 5 + pitch] = pixel5;
+			         accumulator[x + 6 + pitch] = pixel6;
+			         accumulator[x + 7 + pitch] = pixel7;
+
+			         pixel = ApplyReinhardJodie(pixel);
+			         pixel1 = ApplyReinhardJodie(pixel1);
+			         pixel2 = ApplyReinhardJodie(pixel2);
+			         pixel3 = ApplyReinhardJodie(pixel3);
+			         pixel4 = ApplyReinhardJodie(pixel4);
+			         pixel5 = ApplyReinhardJodie(pixel5);
+			         pixel6 = ApplyReinhardJodie(pixel6);
+			         pixel7 = ApplyReinhardJodie(pixel7);
+
+			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+			         screen->pixels[x + 1 + pitch] = RGBF32_to_RGB8(&pixel1);
+			         screen->pixels[x + 2 + pitch] = RGBF32_to_RGB8(&pixel2);
+			         screen->pixels[x + 3 + pitch] = RGBF32_to_RGB8(&pixel3);
+			         screen->pixels[x + 4 + pitch] = RGBF32_to_RGB8(&pixel4);
+			         screen->pixels[x + 5 + pitch] = RGBF32_to_RGB8(&pixel5);
+			         screen->pixels[x + 6 + pitch] = RGBF32_to_RGB8(&pixel6);
+			         screen->pixels[x + 7 + pitch] = RGBF32_to_RGB8(&pixel7);
+		         }
+#else
+
 		         for (uint32_t x = 0; x < SCRWIDTH; x++)
 		         {
 			         float3 newPixel{0};
@@ -913,11 +1025,9 @@ void Renderer::Update()
 			         //	pixel = blendedColor;
 			         //}
 
-			         if (staticCamera)
-			         {
-				         weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-				         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
-			         }
+
+			         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+
 			         //display
 			         accumulator[x + pitch] = pixel;
 
@@ -925,6 +1035,8 @@ void Renderer::Update()
 
 			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
 		         }
+#endif
+
 #ifdef PROFILE
 	}
 #else
@@ -1608,9 +1720,9 @@ void Renderer::HandleImguiVoxelVolumes()
 		{
 			ResetAccumulator();
 		}
-		float3 pos = scene.cube.position;
-		float3 rot = scene.cube.rotation; // Rotation
-		float3 scale = scene.cube.scale; // Scale
+		float3 pos = scene.position;
+		float3 rot = scene.rotation; // Rotation
+		float3 scale = scene.scale; // Scale
 		bool update = false;
 		ImGui::SliderFloat3(("Vox position" + to_string(i)).c_str(), pos.cell, -10.0f, 10.0f, "%.1f");
 		if (ImGui::IsItemEdited())
@@ -1624,9 +1736,9 @@ void Renderer::HandleImguiVoxelVolumes()
 		if (update)
 		{
 			// Apply rotation and scaling
-			scene.cube.scale = scale;
-			scene.cube.rotation = rot;
-			scene.cube.position = pos;
+			scene.scale = scale;
+			scene.rotation = rot;
+			scene.position = pos;
 
 			rot *= DEG2RAD;
 			scene.SetTransform(rot);

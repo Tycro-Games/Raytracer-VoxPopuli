@@ -2930,8 +2930,9 @@ inline void operator-=(mat2& a, const mat2& b)
 float3 TransformPosition(const float3& a, const mat4& M);
 float3 TransformVector(const float3& a, const mat4& M);
 float3 TransformPosition_SSE(const __m128& a, const mat4& M);
+__m128 TransformPosition_SSEM(const __m128& a, const mat4& M);
 float3 TransformVector_SSE(const __m128& a, const mat4& M);
-float3 TransformVector_SSE(const __m128& a, const mat4& M);
+__m128 TransformVector_SSEM(const __m128& a, const mat4& M);
 float atan2_approximation2(float y, float x);
 float FastAcos(float x);
 

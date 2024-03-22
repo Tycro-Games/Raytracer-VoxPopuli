@@ -214,17 +214,17 @@ bool Cube::Contains(const float3& pos) const
 }
 
 
-void Scene::SetCubeBoundaries(const float3& position)
+void Scene::SetCubeBoundaries(const float3& _position)
 {
-	cube.b[0] = position;
-	cube.b[1] = position + float3{1};
+	cube.b[0] = _position;
+	cube.b[1] = _position + float3{1};
 }
 
 
 // Function to set scaling of the voxel cube
 void Scene::SetScale(const float3& scl)
 {
-	cube.scale = scl; // Store the scaling factors
+	scale = scl; // Store the scaling factors
 }
 
 void Scene::GenerateSomeNoise(float frequency = 0.03f)
@@ -364,39 +364,39 @@ void Scene::ResetGrid(MaterialType::MatType type)
 	std::fill(grid.begin(), grid.end(), type);
 }
 
-void Scene::SetTransform(const float3& rotation)
+void Scene::SetTransform(const float3& _rotation)
 {
 	//as Max (230184) explained how I could rotate around a pivot
 	const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
 	// Translate the object to the pivot point (center of the cube)
-	const mat4 translateToPivot = mat4::Translate(centerCube + cube.position);
+	const mat4 translateToPivot = mat4::Translate(centerCube + position);
 
 	// Translate back to the original position after rotation
 	const mat4 translateBack = mat4::Translate(-centerCube);
 
 	// Scale the object
-	const mat4 scale = mat4::Scale(cube.scale);
+	const mat4 _scale = mat4::Scale(this->scale);
 
 	// Rotate the object around the pivot point
 	//const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
 	quat qRot;
-	qRot.fromAxisAngle(float3{1, 0, 0}, rotation.x);
+	qRot.fromAxisAngle(float3{1, 0, 0}, _rotation.x);
 	// Rotation around the Y-axis
 	quat qRotY;
-	qRotY.fromAxisAngle(float3{0, 1, 0}, rotation.y);
+	qRotY.fromAxisAngle(float3{0, 1, 0}, _rotation.y);
 	qRot = qRotY * qRot; // Apply rotation around Y-axis
 
 	// Rotation around the Z-axis
 	quat qRotZ;
-	qRotZ.fromAxisAngle(float3{0, 0, 1}, rotation.z);
+	qRotZ.fromAxisAngle(float3{0, 0, 1}, _rotation.z);
 	qRot = qRotZ * qRot; // Apply rotation around Z-axis
 	const mat4 rot = qRot.toMatrix();
 	// Calculate the inverse transformation matrix
-	cube.matrix = translateToPivot * scale * rot * translateBack;
+	matrix = translateToPivot * _scale * rot * translateBack;
 	//cube.matrix = mat4::Identity() * translateBack * scale * rot * translateToPivot;
 
 
-	cube.invMatrix = (mat4::Identity() * translateToPivot * rot * scale * translateBack).Inverted();
+	invMatrix = (mat4::Identity() * translateToPivot * rot * _scale * translateBack).Inverted();
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -585,7 +585,7 @@ bool Scene::FindNearest(Ray& ray) const
 		{
 			ray.t = s.t;
 
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
 
 			ray.indexMaterial = cell;
 			return true;
@@ -648,7 +648,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 		if (cell != matType)
 		{
 			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
 			ray.indexMaterial = cell;
 			return true;
 		}
@@ -717,7 +717,7 @@ bool Scene::FindSmokeExit(Ray& ray) const
 		{
 			ray.t = s.t;
 
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, cube.matrix);
+			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
 			ray.indexMaterial = cell;
 			return true;
 		}

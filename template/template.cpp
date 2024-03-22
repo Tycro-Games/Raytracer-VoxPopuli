@@ -219,7 +219,7 @@ void main()
 	ImGuiIO& io = ImGui::GetIO();
 	io.IniFilename = "./imgui.ini";
 	// done, enter main loop
-#if 1
+#if 0
 	// basic shader: apply gamma correction
 	Shader* shader = new Shader(
 		"#version 330\nin vec4 p;\nin vec2 t;out vec2 u;void main(){u=t;gl_Position=p;}",
@@ -232,12 +232,12 @@ void main()
 		"uniform sampler2D c; in vec2 uv; out vec4 f;			\n"
 		"#define SCRWIDTH             							\n"
 		"#define SCRHEIGHT             							\n"
-		"#define MASK_INTENSITY 0.0								\n"
+		"#define MASK_INTENSITY 0.5								\n"
 		"#define InputGamma		2.4								\n"
 		"#define OutputGamma	2.2								\n"
 		"#define BRIGHTBOOST	1.5								\n"
-		"#define SCANLINES		0.22							\n"
-		"#define SHARPER		1								\n"
+		"#define SCANLINES		0.72							\n"
+		"#define SHARPER		0								\n"
 		"#define GAMMA_IN(color)  pow(color, vec3(InputGamma, InputGamma, InputGamma)) \n"
 		"#define GAMMA_OUT(color) pow(color, vec3(1.0 / OutputGamma, 1.0 / OutputGamma, 1.0 / OutputGamma)) \n"
 		"void main(){											\n"
@@ -277,8 +277,8 @@ void main()
 		"f = vec4( GAMMA_OUT( color ), 1.0 );}";
 	char *sw = strstr(fs, "SCRWIDTH "), *sh = strstr(fs, "SCRHEIGHT ");
 	char swt[16], sht[16];
-	sprintf(swt, "%i", SCRWIDTH / 4);
-	sprintf(sht, "%i", SCRHEIGHT / 4);
+	sprintf(swt, "%i", SCRWIDTH / 2);
+	sprintf(sht, "%i", SCRHEIGHT / 2);
 	memcpy(sw + 9, swt, strlen(swt));
 	memcpy(sh + 10, sht, strlen(sht));
 	Shader* shader = new Shader(

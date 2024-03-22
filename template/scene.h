@@ -4,7 +4,7 @@ namespace Tmpl8
 {
 	class Renderer;
 }
-
+#pragma warning(disable : 4201)
 // high level settings
 // #define TWOLEVEL
 //#define USE_MORTON 
@@ -35,7 +35,7 @@ constexpr uint64_t BMI_3D_MASKS[3] = {BMI_3D_X_MASK, BMI_3D_Y_MASK, BMI_3D_Z_MAS
 
 namespace MaterialType
 {
-	enum MatType :uint32_t
+	enum MatType :uint8_t
 	{
 		NON_METAL_WHITE,
 		NON_METAL_RED,
@@ -52,7 +52,7 @@ namespace MaterialType
 		SMOKE_MID2_DENSITY,
 		SMOKE_HIGH_DENSITY,
 		EMISSIVE,
-		NONE = 256
+		NONE = 255
 	};
 }
 
@@ -90,11 +90,51 @@ namespace Tmpl8
 		float3 GetAbsorption(const float3& I) const; // TODO: implement
 		float3 Evaluate(const float3& I) const; // TODO: implement
 		// ray data
-		float3 O; // ray origin //12 bytes
-		float3 rD; // reciprocal ray direction
-		float3 D = float3(0); // ray direction
-		float3 Dsign = float3(1); // 48 bytes
-		float3 rayNormal{0}; //60 bytes
+		union
+		{
+			struct
+			{
+				float3 O;
+				float dummy1;
+			};
+
+			__m128 O4;
+		};
+
+		union
+		{
+			struct
+			{
+				float3 D;
+				float dummy2;
+			};
+
+			__m128 D4;
+		};
+
+		union
+		{
+			struct
+			{
+				float3 rD;
+				float dummy3;
+			};
+
+			__m128 rD4;
+		};
+
+		union
+		{
+			struct
+			{
+				float3 Dsign;
+				float dummy4;
+			};
+
+			__m128 Dsign4;
+		};
+
+		float3 rayNormal{0};
 
 		float t = 1e34f; // ray length
 		bool isInsideGlass = false;
@@ -118,11 +158,7 @@ namespace Tmpl8
 		float Intersect(const Ray& ray) const;
 		bool Contains(const float3& pos) const;
 		float3 b[2] = {{0}, {1}};
-		float3 rotation{0};
-		float3 position{0};
-		float3 scale{1};
-		mat4 invMatrix;
-		mat4 matrix;
+
 
 		void Grow(float3 p)
 		{
@@ -147,7 +183,7 @@ namespace Tmpl8
 
 		//Assumes size of 1
 		void SetCubeBoundaries(const float3& position);
-		void SetTransform(const float3& rotation);
+		void SetTransform(const float3& _rotation);
 		void SetScale(const float3& scl);
 
 		void GenerateSomeNoise(float frequency);
@@ -189,6 +225,11 @@ namespace Tmpl8
 		std::vector<MaterialType::MatType> grid{};
 
 		float3 scaleModel{1.0f};
+		float3 rotation{0};
+		float3 position{0};
+		float3 scale{1};
+		mat4 invMatrix;
+		mat4 matrix;
 		Cube cube;
 
 	private:

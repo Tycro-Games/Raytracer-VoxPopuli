@@ -535,7 +535,7 @@ int32_t Renderer::FindNearest(Ray& ray)
 
 
 		mat4 invMat = voxelVolumes[i].invMatrix;
-#ifdef SIMD
+#if 1
 		ray.O4 = TransformPosition_SSEM(ray.O4, invMat);
 
 		ray.D4 = TransformVector_SSEM(ray.D4, invMat);
@@ -601,12 +601,13 @@ int32_t Renderer::FindNearest(Ray& ray)
 // -----------------------------------------------------------
 float3 Renderer::Trace(Ray& ray, int depth)
 {
+	return {0};
+
 	if (depth < 0)
 	{
 		return {0};
 	}
 	//Find nearest BVH
-
 
 	int32_t voxIndex = FindNearest(ray);
 	//return { 0 };
@@ -861,34 +862,42 @@ bool Renderer::IsValid(const float2& uv)
 	return uv.x >= 0.0f && uv.x < 1.0f && uv.y >= 0.0f && uv.y < 1.0f;
 }
 
+
 void Renderer::Update()
 {
 	//do only once
 	//c++ 17 onwards parallel for loop
+
 	weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
 
+	static __m256 oneSSE = _mm256_set1_ps(1.0f);
+
 	static __m256 antiAliasingStrengthSSE = _mm256_set1_ps(antiAliasingStrength);
+
 #ifdef PROFILE
-	for (uint32_t y = 0; y < SCRHEIGHT; y++)
+	for (int32_t y = 0; y < SCRHEIGHT; y++)
 	{
 #else
+
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
 	         [this](const int32_t y)
 	         {
 #endif
+
+#if 1
 		const __m256 weightSSE = _mm256_set1_ps(weight);
 		const __m256 invWeightSSE = _mm256_set1_ps(1.0f - weight);
-		const uint32_t pitch = y * SCRWIDTH;
-#ifdef SIMD
+		const __m256i pitchSSE = _mm256_set1_epi32(y * SCRWIDTH);
+
 		const __m256 ySSE = _mm256_cvtepi32_ps(_mm256_set1_epi32(y));
 		//avx2 
 		for (int32_t x = 0; x < SCRWIDTH; x += 8)
 		{
-			const __m256 xSSE = _mm256_cvtepi32_ps(_mm256_set_epi32(x + 7, x + 6,
-			                                                        x + 5,
-			                                                        x + 4, x + 3,
-			                                                        x + 2, x + 1,
-			                                                        x));
+			__m256i xIndexSSE = _mm256_set_epi32(x + 7, x + 6, x + 5,
+			                                     x + 4, x + 3,
+			                                     x + 2, x + 1,
+			                                     x);
+			const __m256 xSSE = _mm256_cvtepi32_ps(xIndexSSE);
 
 
 			__m256 randomXDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
@@ -907,69 +916,45 @@ void Renderer::Update()
 
 			// Compute primary rays
 			Ray primaryRays[8];
-			for (int i = 0; i < 8; ++i)
-			{
-				primaryRays[i] = camera.GetPrimaryRay(coordinatesX[i], coordinatesY[i]);
-			}
+
+			primaryRays[0] = camera.GetPrimaryRay(coordinatesX[0], coordinatesY[0]);
+			primaryRays[1] = camera.GetPrimaryRay(coordinatesX[1], coordinatesY[1]);
+			primaryRays[2] = camera.GetPrimaryRay(coordinatesX[2], coordinatesY[2]);
+			primaryRays[3] = camera.GetPrimaryRay(coordinatesX[3], coordinatesY[3]);
+			primaryRays[4] = camera.GetPrimaryRay(coordinatesX[4], coordinatesY[4]);
+			primaryRays[5] = camera.GetPrimaryRay(coordinatesX[5], coordinatesY[5]);
+			primaryRays[6] = camera.GetPrimaryRay(coordinatesX[6], coordinatesY[6]);
+			primaryRays[7] = camera.GetPrimaryRay(coordinatesX[7], coordinatesY[7]);
+
 
 			// Trace rays and store results
 			float4 newPixels[8];
-			for (int i = 0; i < 8; ++i)
-			{
-				newPixels[i] = Trace(primaryRays[i], maxBounces);
-			}
 
-			// Load pixel values into a SIMD register
-			const __m256 pixelSSE = _mm256_set_ps(newPixels[7].w, newPixels[7].z, newPixels[7].y,
-			                                      newPixels[7].x,
-			                                      newPixels[6].w, newPixels[6].z, newPixels[6].y,
-			                                      newPixels[6].x);
-			const __m256 pixel1SSE = _mm256_set_ps(newPixels[5].w, newPixels[5].z, newPixels[5].y,
-			                                       newPixels[5].x,
-			                                       newPixels[4].w, newPixels[4].z, newPixels[4].y,
-			                                       newPixels[4].x);
-			const __m256 pixel2SSE = _mm256_set_ps(newPixels[3].w, newPixels[3].z, newPixels[3].y,
-			                                       newPixels[3].x,
-			                                       newPixels[2].w, newPixels[2].z, newPixels[2].y,
-			                                       newPixels[2].x);
-			const __m256 pixel3SSE = _mm256_set_ps(newPixels[1].w, newPixels[1].z, newPixels[1].y,
-			                                       newPixels[1].x,
-			                                       newPixels[0].w, newPixels[0].z, newPixels[0].y,
-			                                       newPixels[0].x);
+			newPixels[0] = Trace(primaryRays[0], maxBounces);
+			newPixels[1] = Trace(primaryRays[1], maxBounces);
+			newPixels[2] = Trace(primaryRays[2], maxBounces);
+			newPixels[3] = Trace(primaryRays[3], maxBounces);
+			newPixels[4] = Trace(primaryRays[4], maxBounces);
+			newPixels[5] = Trace(primaryRays[5], maxBounces);
+			newPixels[6] = Trace(primaryRays[6], maxBounces);
+			newPixels[7] = Trace(primaryRays[7], maxBounces);
 
 
-			const __m256 accumulatorSSE1 = _mm256_set_ps(accumulator[x + 7 + pitch].w,
-			                                             accumulator[x + 7 + pitch].z,
-			                                             accumulator[x + 7 + pitch].y,
-			                                             accumulator[x + 7 + pitch].x,
-			                                             accumulator[x + 6 + pitch].w,
-			                                             accumulator[x + 6 + pitch].z,
-			                                             accumulator[x + 6 + pitch].y,
-			                                             accumulator[x + 6 + pitch].x);
-			const __m256 accumulatorSSE2 = _mm256_set_ps(accumulator[x + 5 + pitch].w,
-			                                             accumulator[x + 5 + pitch].z,
-			                                             accumulator[x + 5 + pitch].y,
-			                                             accumulator[x + 5 + pitch].x,
-			                                             accumulator[x + 4 + pitch].w,
-			                                             accumulator[x + 4 + pitch].z,
-			                                             accumulator[x + 4 + pitch].y,
-			                                             accumulator[x + 4 + pitch].x);
-			const __m256 accumulatorSSE3 = _mm256_set_ps(accumulator[x + 3 + pitch].w,
-			                                             accumulator[x + 3 + pitch].z,
-			                                             accumulator[x + 3 + pitch].y,
-			                                             accumulator[x + 3 + pitch].x,
-			                                             accumulator[x + 2 + pitch].w,
-			                                             accumulator[x + 2 + pitch].z,
-			                                             accumulator[x + 2 + pitch].y,
-			                                             accumulator[x + 2 + pitch].x);
-			const __m256 accumulatorSSE4 = _mm256_set_ps(accumulator[x + 1 + pitch].w,
-			                                             accumulator[x + 1 + pitch].z,
-			                                             accumulator[x + 1 + pitch].y,
-			                                             accumulator[x + 1 + pitch].x,
-			                                             accumulator[x + 0 + pitch].w,
-			                                             accumulator[x + 0 + pitch].z,
-			                                             accumulator[x + 0 + pitch].y,
-			                                             accumulator[x + 0 + pitch].x);
+			const __m256 pixelSSE = _mm256_loadu_ps(&newPixels[6].x);
+			const __m256 pixel1SSE = _mm256_loadu_ps(&newPixels[4].x);
+			const __m256 pixel2SSE = _mm256_loadu_ps(&newPixels[2].x);
+			const __m256 pixel3SSE = _mm256_loadu_ps(&newPixels[0].x);
+
+			xIndexSSE = _mm256_add_epi32(xIndexSSE, pitchSSE);
+
+			int32_t xIndex[8];
+			_mm256_storeu_si256(reinterpret_cast<__m256i*>(xIndex), xIndexSSE);
+
+			const __m256 accumulatorSSE1 = _mm256_loadu_ps(&accumulator[xIndex[6]].x);
+			const __m256 accumulatorSSE2 = _mm256_loadu_ps(&accumulator[xIndex[4]].x);
+			const __m256 accumulatorSSE3 = _mm256_loadu_ps(&accumulator[xIndex[2]].x);
+			const __m256 accumulatorSSE4 = _mm256_loadu_ps(&accumulator[xIndex[0]].x);
+
 
 			const __m256 blendedSSE1 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE1,
 			                                           _mm256_mul_ps(
@@ -989,19 +974,43 @@ void Renderer::Update()
 				                                           weightSSE));
 
 			//display
+			float4 newPixel[8];
+			_mm256_store_ps(&newPixel[6].x, blendedSSE1);
+			_mm256_store_ps(&newPixel[4].x, blendedSSE2);
+			_mm256_store_ps(&newPixel[2].x, blendedSSE3);
+			_mm256_store_ps(&newPixel[0].x, blendedSSE4);
 
-			_mm256_store_ps(&newPixels[6].x, blendedSSE1);
-			_mm256_store_ps(&newPixels[4].x, blendedSSE2);
-			_mm256_store_ps(&newPixels[2].x, blendedSSE3);
-			_mm256_store_ps(&newPixels[0].x, blendedSSE4);
-			for (int i = 0; i < 8; i++)
-			{
-				accumulator[x + i + pitch] = newPixels[i];
-				newPixels[i] = ApplyReinhardJodie(newPixels[i]);
-				screen->pixels[x + i + pitch] = RGBF32_to_RGB8(&newPixels[i]);
-			}
+			accumulator[xIndex[0]] = newPixel[0];
+			accumulator[xIndex[1]] = newPixel[1];
+			accumulator[xIndex[2]] = newPixel[2];
+			accumulator[xIndex[3]] = newPixel[3];
+			accumulator[xIndex[4]] = newPixel[4];
+			accumulator[xIndex[5]] = newPixel[5];
+			accumulator[xIndex[6]] = newPixel[6];
+			accumulator[xIndex[7]] = newPixel[7];
+
+
+			newPixel[0] = ApplyReinhardJodie(newPixel[0]);
+			newPixel[1] = ApplyReinhardJodie(newPixel[1]);
+			newPixel[2] = ApplyReinhardJodie(newPixel[2]);
+			newPixel[3] = ApplyReinhardJodie(newPixel[3]);
+			newPixel[4] = ApplyReinhardJodie(newPixel[4]);
+			newPixel[5] = ApplyReinhardJodie(newPixel[5]);
+			newPixel[6] = ApplyReinhardJodie(newPixel[6]);
+			newPixel[7] = ApplyReinhardJodie(newPixel[7]);
+
+			screen->pixels[xIndex[0]] = RGBF32_to_RGB8(&newPixel[0]);
+			screen->pixels[xIndex[1]] = RGBF32_to_RGB8(&newPixel[1]);
+			screen->pixels[xIndex[2]] = RGBF32_to_RGB8(&newPixel[2]);
+			screen->pixels[xIndex[3]] = RGBF32_to_RGB8(&newPixel[3]);
+			screen->pixels[xIndex[4]] = RGBF32_to_RGB8(&newPixel[4]);
+			screen->pixels[xIndex[5]] = RGBF32_to_RGB8(&newPixel[5]);
+			screen->pixels[xIndex[6]] = RGBF32_to_RGB8(&newPixel[6]);
+			screen->pixels[xIndex[7]] = RGBF32_to_RGB8(&newPixel[7]);
 		}
 #else
+		const uint32_t pitch = y * SCRWIDTH;
+		float invWeight = 1.0f - weight;
 
 		for (uint32_t x = 0; x < SCRWIDTH; x++)
 		{
@@ -1019,7 +1028,7 @@ void Renderer::Update()
 			float4 pixel = newPixel;
 
 
-			pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			pixel = BlendColor(pixel, accumulator[x + pitch], invWeight);
 
 			//display
 			accumulator[x + pitch] = pixel;

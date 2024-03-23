@@ -526,11 +526,6 @@ int32_t Renderer::FindNearest(Ray& ray)
 {
 	int32_t voxelIndex = -2;
 
-#if 1
-
-	__m128 oriSSE = ray.O4;
-	__m128 dirSSE = ray.D4;
-#endif
 
 	int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
 	for (int32_t i = 0; i < voxelCount; i++)
@@ -540,10 +535,10 @@ int32_t Renderer::FindNearest(Ray& ray)
 
 
 		mat4 invMat = voxelVolumes[i].invMatrix;
-#if 1
-		ray.O4 = TransformPosition_SSEM(oriSSE, invMat);
+#ifdef SIMD
+		ray.O4 = TransformPosition_SSEM(ray.O4, invMat);
 
-		ray.D4 = TransformVector_SSEM(dirSSE, invMat);
+		ray.D4 = TransformVector_SSEM(ray.D4, invMat);
 
 		//for my machine the fast reciprocal is a bit slower
 
@@ -871,170 +866,168 @@ void Renderer::Update()
 	//do only once
 	//c++ 17 onwards parallel for loop
 	weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
-	static __m256 weightSSE = _mm256_set1_ps(weight);
+
 	static __m256 antiAliasingStrengthSSE = _mm256_set1_ps(antiAliasingStrength);
 #ifdef PROFILE
 	for (uint32_t y = 0; y < SCRHEIGHT; y++)
 	{
 #else
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
-	         [this](const uint32_t y)
+	         [this](const int32_t y)
 	         {
 #endif
-
-		         const uint32_t pitch = y * SCRWIDTH;
-#if 1
-		         __m256 ySSE = _mm256_set1_ps(static_cast<float>(y));
-		         //avx2 
-		         for (uint32_t x = 0; x < SCRWIDTH; x += 8)
-		         {
-			         /* float3 newPixel{0};
-			          float3 newPixel1{0};
-			          float3 newPixel2{0};
-			          float3 newPixel3{0};
-			          float3 newPixel4{0};
-			          float3 newPixel5{0};
-			          float3 newPixel6{0};
-			          float3 newPixel7{0};*/
-			         __m256 xSSE = _mm256_set_ps(static_cast<float>(x + 7), static_cast<float>(x + 6),
-			                                     static_cast<float>(x + 5),
-			                                     static_cast<float>(x + 4), static_cast<float>(x + 3),
-			                                     static_cast<float>(x + 2), static_cast<float>(x + 1),
-			                                     static_cast<float>(x));
+		const __m256 weightSSE = _mm256_set1_ps(weight);
+		const __m256 invWeightSSE = _mm256_set1_ps(1.0f - weight);
+		const uint32_t pitch = y * SCRWIDTH;
+#ifdef SIMD
+		const __m256 ySSE = _mm256_cvtepi32_ps(_mm256_set1_epi32(y));
+		//avx2 
+		for (int32_t x = 0; x < SCRWIDTH; x += 8)
+		{
+			const __m256 xSSE = _mm256_cvtepi32_ps(_mm256_set_epi32(x + 7, x + 6,
+			                                                        x + 5,
+			                                                        x + 4, x + 3,
+			                                                        x + 2, x + 1,
+			                                                        x));
 
 
-			         __m256 randomXDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
-			                                              RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
-			         __m256 randomYDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
-			                                              RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
-			         randomXDirSSE = _mm256_mul_ps(randomXDirSSE, antiAliasingStrengthSSE);
-			         randomYDirSSE = _mm256_mul_ps(randomYDirSSE, antiAliasingStrengthSSE);
-			         ////AA
-			         //float randomXDir = RandomFloat() * antiAliasingStrength;
-			         //float randomYDir = RandomFloat() * antiAliasingStrength;
-			         randomXDirSSE = _mm256_add_ps(randomXDirSSE, xSSE);
-			         randomYDirSSE = _mm256_add_ps(randomYDirSSE, ySSE);
-			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-			                                               static_cast<float>(y) + randomYDir);
-			         //get new pixel
+			__m256 randomXDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
+			                                     RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
+			__m256 randomYDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
+			                                     RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
+
+			randomXDirSSE = _mm256_fmadd_ps(randomXDirSSE, antiAliasingStrengthSSE,
+			                                xSSE);
+			randomYDirSSE = _mm256_fmadd_ps(randomYDirSSE, antiAliasingStrengthSSE,
+			                                ySSE);
+			float coordinatesX[8];
+			float coordinatesY[8];
+			_mm256_store_ps(coordinatesX, randomXDirSSE);
+			_mm256_store_ps(coordinatesY, randomYDirSSE);
+
+			// Compute primary rays
+			Ray primaryRays[8];
+			for (int i = 0; i < 8; ++i)
+			{
+				primaryRays[i] = camera.GetPrimaryRay(coordinatesX[i], coordinatesY[i]);
+			}
+
+			// Trace rays and store results
+			float4 newPixels[8];
+			for (int i = 0; i < 8; ++i)
+			{
+				newPixels[i] = Trace(primaryRays[i], maxBounces);
+			}
+
+			// Load pixel values into a SIMD register
+			const __m256 pixelSSE = _mm256_set_ps(newPixels[7].w, newPixels[7].z, newPixels[7].y,
+			                                      newPixels[7].x,
+			                                      newPixels[6].w, newPixels[6].z, newPixels[6].y,
+			                                      newPixels[6].x);
+			const __m256 pixel1SSE = _mm256_set_ps(newPixels[5].w, newPixels[5].z, newPixels[5].y,
+			                                       newPixels[5].x,
+			                                       newPixels[4].w, newPixels[4].z, newPixels[4].y,
+			                                       newPixels[4].x);
+			const __m256 pixel2SSE = _mm256_set_ps(newPixels[3].w, newPixels[3].z, newPixels[3].y,
+			                                       newPixels[3].x,
+			                                       newPixels[2].w, newPixels[2].z, newPixels[2].y,
+			                                       newPixels[2].x);
+			const __m256 pixel3SSE = _mm256_set_ps(newPixels[1].w, newPixels[1].z, newPixels[1].y,
+			                                       newPixels[1].x,
+			                                       newPixels[0].w, newPixels[0].z, newPixels[0].y,
+			                                       newPixels[0].x);
 
 
-			         Ray primaryRay1 = camera.GetPrimaryRay(static_cast<float>(x + 1) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
-			         Ray primaryRay2 = camera.GetPrimaryRay(static_cast<float>(x + 2) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
-			         Ray primaryRay3 = camera.GetPrimaryRay(static_cast<float>(x + 3) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
+			const __m256 accumulatorSSE1 = _mm256_set_ps(accumulator[x + 7 + pitch].w,
+			                                             accumulator[x + 7 + pitch].z,
+			                                             accumulator[x + 7 + pitch].y,
+			                                             accumulator[x + 7 + pitch].x,
+			                                             accumulator[x + 6 + pitch].w,
+			                                             accumulator[x + 6 + pitch].z,
+			                                             accumulator[x + 6 + pitch].y,
+			                                             accumulator[x + 6 + pitch].x);
+			const __m256 accumulatorSSE2 = _mm256_set_ps(accumulator[x + 5 + pitch].w,
+			                                             accumulator[x + 5 + pitch].z,
+			                                             accumulator[x + 5 + pitch].y,
+			                                             accumulator[x + 5 + pitch].x,
+			                                             accumulator[x + 4 + pitch].w,
+			                                             accumulator[x + 4 + pitch].z,
+			                                             accumulator[x + 4 + pitch].y,
+			                                             accumulator[x + 4 + pitch].x);
+			const __m256 accumulatorSSE3 = _mm256_set_ps(accumulator[x + 3 + pitch].w,
+			                                             accumulator[x + 3 + pitch].z,
+			                                             accumulator[x + 3 + pitch].y,
+			                                             accumulator[x + 3 + pitch].x,
+			                                             accumulator[x + 2 + pitch].w,
+			                                             accumulator[x + 2 + pitch].z,
+			                                             accumulator[x + 2 + pitch].y,
+			                                             accumulator[x + 2 + pitch].x);
+			const __m256 accumulatorSSE4 = _mm256_set_ps(accumulator[x + 1 + pitch].w,
+			                                             accumulator[x + 1 + pitch].z,
+			                                             accumulator[x + 1 + pitch].y,
+			                                             accumulator[x + 1 + pitch].x,
+			                                             accumulator[x + 0 + pitch].w,
+			                                             accumulator[x + 0 + pitch].z,
+			                                             accumulator[x + 0 + pitch].y,
+			                                             accumulator[x + 0 + pitch].x);
 
-			         Ray primaryRay4 = camera.GetPrimaryRay(static_cast<float>(x + 4) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
-			         Ray primaryRay5 = camera.GetPrimaryRay(static_cast<float>(x + 5) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
-			         Ray primaryRay6 = camera.GetPrimaryRay(static_cast<float>(x + 6) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
-			         Ray primaryRay7 = camera.GetPrimaryRay(static_cast<float>(x + 7) + randomXDir,
-			                                                static_cast<float>(y) + randomYDir);
+			const __m256 blendedSSE1 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE1,
+			                                           _mm256_mul_ps(
+				                                           pixelSSE,
+				                                           weightSSE));
+			const __m256 blendedSSE2 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE2,
+			                                           _mm256_mul_ps(
+				                                           pixel1SSE,
+				                                           weightSSE));
+			const __m256 blendedSSE3 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE3,
+			                                           _mm256_mul_ps(
+				                                           pixel2SSE,
+				                                           weightSSE));
+			const __m256 blendedSSE4 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE4,
+			                                           _mm256_mul_ps(
+				                                           pixel3SSE,
+				                                           weightSSE));
 
+			//display
 
-			         newPixel = Trace(primaryRay, maxBounces);
-			         newPixel1 = Trace(primaryRay1, maxBounces);
-			         newPixel2 = Trace(primaryRay2, maxBounces);
-			         newPixel3 = Trace(primaryRay3, maxBounces);
-			         newPixel4 = Trace(primaryRay4, maxBounces);
-			         newPixel5 = Trace(primaryRay5, maxBounces);
-			         newPixel6 = Trace(primaryRay6, maxBounces);
-			         newPixel7 = Trace(primaryRay7, maxBounces);
-
-			         float4 pixel = newPixel;
-			         float4 pixel1 = newPixel1;
-			         float4 pixel2 = newPixel2;
-			         float4 pixel3 = newPixel3;
-			         float4 pixel4 = newPixel4;
-			         float4 pixel5 = newPixel5;
-			         float4 pixel6 = newPixel6;
-			         float4 pixel7 = newPixel7;
-
-
-			         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
-			         pixel1 = BlendColor(pixel1, accumulator[x + 1 + pitch], 1.0f - weight);
-			         pixel2 = BlendColor(pixel2, accumulator[x + 2 + pitch], 1.0f - weight);
-			         pixel3 = BlendColor(pixel3, accumulator[x + 3 + pitch], 1.0f - weight);
-			         pixel4 = BlendColor(pixel4, accumulator[x + 4 + pitch], 1.0f - weight);
-			         pixel5 = BlendColor(pixel5, accumulator[x + 5 + pitch], 1.0f - weight);
-			         pixel6 = BlendColor(pixel6, accumulator[x + 6 + pitch], 1.0f - weight);
-			         pixel7 = BlendColor(pixel7, accumulator[x + 7 + pitch], 1.0f - weight);
-
-			         //display
-			         accumulator[x + pitch] = pixel;
-			         accumulator[x + 1 + pitch] = pixel1;
-			         accumulator[x + 2 + pitch] = pixel2;
-			         accumulator[x + 3 + pitch] = pixel3;
-			         accumulator[x + 4 + pitch] = pixel4;
-			         accumulator[x + 5 + pitch] = pixel5;
-			         accumulator[x + 6 + pitch] = pixel6;
-			         accumulator[x + 7 + pitch] = pixel7;
-
-			         pixel = ApplyReinhardJodie(pixel);
-			         pixel1 = ApplyReinhardJodie(pixel1);
-			         pixel2 = ApplyReinhardJodie(pixel2);
-			         pixel3 = ApplyReinhardJodie(pixel3);
-			         pixel4 = ApplyReinhardJodie(pixel4);
-			         pixel5 = ApplyReinhardJodie(pixel5);
-			         pixel6 = ApplyReinhardJodie(pixel6);
-			         pixel7 = ApplyReinhardJodie(pixel7);
-
-			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-			         screen->pixels[x + 1 + pitch] = RGBF32_to_RGB8(&pixel1);
-			         screen->pixels[x + 2 + pitch] = RGBF32_to_RGB8(&pixel2);
-			         screen->pixels[x + 3 + pitch] = RGBF32_to_RGB8(&pixel3);
-			         screen->pixels[x + 4 + pitch] = RGBF32_to_RGB8(&pixel4);
-			         screen->pixels[x + 5 + pitch] = RGBF32_to_RGB8(&pixel5);
-			         screen->pixels[x + 6 + pitch] = RGBF32_to_RGB8(&pixel6);
-			         screen->pixels[x + 7 + pitch] = RGBF32_to_RGB8(&pixel7);
-		         }
+			_mm256_store_ps(&newPixels[6].x, blendedSSE1);
+			_mm256_store_ps(&newPixels[4].x, blendedSSE2);
+			_mm256_store_ps(&newPixels[2].x, blendedSSE3);
+			_mm256_store_ps(&newPixels[0].x, blendedSSE4);
+			for (int i = 0; i < 8; i++)
+			{
+				accumulator[x + i + pitch] = newPixels[i];
+				newPixels[i] = ApplyReinhardJodie(newPixels[i]);
+				screen->pixels[x + i + pitch] = RGBF32_to_RGB8(&newPixels[i]);
+			}
+		}
 #else
 
-		         for (uint32_t x = 0; x < SCRWIDTH; x++)
-		         {
-			         float3 newPixel{0};
+		for (uint32_t x = 0; x < SCRWIDTH; x++)
+		{
+			float3 newPixel{0};
 
 
-			         //AA
-			         const float randomXDir = RandomFloat() * antiAliasingStrength;
-			         const float randomYDir = RandomFloat() * antiAliasingStrength;
+			//AA
+			const float randomXDir = RandomFloat() * antiAliasingStrength;
+			const float randomYDir = RandomFloat() * antiAliasingStrength;
 
-			         Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-			                                               static_cast<float>(y) + randomYDir);
-			         //get new pixel
-			         newPixel = Trace(primaryRay, maxBounces);
-			         float4 pixel = newPixel;
-
-			         //////use this for reprojection?
-			         //const float2 previousPixelCoordinate = prevCamera.PointToUV(primaryRay.IntersectionPoint());
-			         //if (IsValid(previousPixelCoordinate) && !staticCamera)
-			         //{
-			         //	float4 previousFrameColor = SamplePreviousFrameColor(
-			         //		previousPixelCoordinate);
+			Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+			                                      static_cast<float>(y) + randomYDir);
+			//get new pixel
+			newPixel = Trace(primaryRay, maxBounces);
+			float4 pixel = newPixel;
 
 
-			         //	/*         if (staticCamera)
-			         //				 weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);*/
-			         //	//weight is usually 0.1, but it is the inverse of the usual 0.9 theta behind the scenes
-			         //	const float4 blendedColor = BlendColor(newPixel, previousFrameColor,
-			         //	                                       1.0f - weight);
-			         //	pixel = blendedColor;
-			         //}
+			pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
 
+			//display
+			accumulator[x + pitch] = pixel;
 
-			         pixel = BlendColor(pixel, accumulator[x + pitch], 1.0f - weight);
+			pixel = ApplyReinhardJodie(pixel);
 
-			         //display
-			         accumulator[x + pitch] = pixel;
-
-			         pixel = ApplyReinhardJodie(pixel);
-
-			         screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		         }
+			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+		}
 #endif
 
 #ifdef PROFILE

@@ -132,11 +132,17 @@ float RandomFloat()
 	return RandomUInt() * 2.3283064365387e-10f;
 }
 
+
 //from https://youtu.be/Qz0KTGYJtUk?si=ccD5CsTc9sZ-Czgq&t=1972
 float2 RandomPointInCircle()
 {
 	const float r = sqrt(RandomFloat());
 	const float theta = 2 * PI * RandomFloat();
+	return {r * cos(theta), r * sin(theta)};
+}
+
+inline float2 RandomPointInCircleSSE(const float r, const float theta)
+{
 	return {r * cos(theta), r * sin(theta)};
 }
 

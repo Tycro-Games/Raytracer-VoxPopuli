@@ -36,6 +36,7 @@ namespace Tmpl8
 		static float3 Refract(float3 direction, float3 normal, float IORRatio);
 		__m128 FastReciprocal(__m128& x);
 		__m128 SlowReciprocal(__m128& dirSSE);
+		__m256 SlowReciprocal(__m256& dirSSE);
 		void TransformPositionAndDirection_SSE(__m128& oriSSE, __m128& dirSSE, const mat4& invMat, Ray& ray);
 		int32_t FindNearest(Ray& ray);
 		float3 Trace(Ray& ray, int depth);

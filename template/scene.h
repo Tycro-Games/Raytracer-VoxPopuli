@@ -66,9 +66,14 @@ namespace Tmpl8
 		void CopyToPrevRay(Ray& ray);
 		Ray() = default;
 		Ray(const Ray& ray);
+		Ray(const float3& origin, const float3& direction, const float3& _rD, const float3& _Dsign,
+		    float rayLength = 1e34f,
+		    int = 0);
+		Ray(const __m128& origin, const __m128& direction, const __m128& _rD, const __m128& _Dsign, float rayLength,
+		    int);
 
-		float3 ComputeDsign(const float3& _D) const;
-		float3 ComputeDsign_SSE(const __m128& m) const;
+		static float3 ComputeDsign(const float3& _D);
+		static __m128 ComputeDsign_SSE(const __m128& m);
 		Ray(const float3 origin, const float3 direction, const float rayLength = 1e34f, const int = 0);
 
 		float3 IntersectionPoint() const

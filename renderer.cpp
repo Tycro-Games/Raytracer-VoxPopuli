@@ -522,6 +522,11 @@ __m128 Renderer::SlowReciprocal(__m128& dirSSE)
 	return _mm_div_ps(_mm_set_ps1(1.0f), dirSSE);
 }
 
+__m256 Renderer::SlowReciprocal(__m256& dirSSE)
+{
+	return _mm256_div_ps(_mm256_set1_ps(1.0f), dirSSE);
+}
+
 int32_t Renderer::FindNearest(Ray& ray)
 {
 	int32_t voxelIndex = -2;
@@ -549,7 +554,7 @@ int32_t Renderer::FindNearest(Ray& ray)
 
 #endif
 
-		ray.Dsign = ray.ComputeDsign_SSE(ray.D4);
+		ray.Dsign4 = ray.ComputeDsign_SSE(ray.D4);
 
 		ray.rD4 = rDSSE;
 
@@ -870,7 +875,7 @@ void Renderer::Update()
 
 	weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
 
-	static __m256 oneSSE = _mm256_set1_ps(1.0f);
+	static __m256 PI2 = _mm256_set1_ps(2 * PI);
 
 	static __m256 antiAliasingStrengthSSE = _mm256_set1_ps(antiAliasingStrength);
 
@@ -880,17 +885,16 @@ void Renderer::Update()
 #else
 
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
-	         [this](const int32_t y)
-	         {
+		[this](const int32_t y)
+		{
 #endif
 
 #if 1
+		const __m256 ySSE = _mm256_cvtepi32_ps(_mm256_set1_epi32(y));
+
 		const __m256 weightSSE = _mm256_set1_ps(weight);
 		const __m256 invWeightSSE = _mm256_set1_ps(1.0f - weight);
 		const __m256i pitchSSE = _mm256_set1_epi32(y * SCRWIDTH);
-
-		const __m256 ySSE = _mm256_cvtepi32_ps(_mm256_set1_epi32(y));
-		//avx2 
 		for (int32_t x = 0; x < SCRWIDTH; x += 8)
 		{
 			__m256i xIndexSSE = _mm256_set_epi32(x + 7, x + 6, x + 5,
@@ -904,27 +908,83 @@ void Renderer::Update()
 			                                     RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
 			__m256 randomYDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
 			                                     RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
+			const __m256 rSSE = _mm256_sqrt_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                 RandomFloat(),
+			                                                 RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                 RandomFloat()));
+			const __m256 thetaSSE = _mm256_mul_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                    RandomFloat(),
+			                                                    RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                    RandomFloat()), PI2);
+			const __m256 xCircleSSE = _mm256_mul_ps(_mm256_cos_ps(thetaSSE), rSSE);
+			const __m256 yCircleSSE = _mm256_mul_ps(_mm256_sin_ps(thetaSSE), rSSE);
 
 			randomXDirSSE = _mm256_fmadd_ps(randomXDirSSE, antiAliasingStrengthSSE,
 			                                xSSE);
-			randomYDirSSE = _mm256_fmadd_ps(randomYDirSSE, antiAliasingStrengthSSE,
-			                                ySSE);
+
 			float coordinatesX[8];
 			float coordinatesY[8];
 			_mm256_store_ps(coordinatesX, randomXDirSSE);
+
+			randomYDirSSE = _mm256_fmadd_ps(randomYDirSSE, antiAliasingStrengthSSE,
+			                                ySSE);
 			_mm256_store_ps(coordinatesY, randomYDirSSE);
 
 			// Compute primary rays
 			Ray primaryRays[8];
+			float radiusX[8];
+			float radiusY[8];
+			_mm256_store_ps(radiusX, xCircleSSE);
+			_mm256_store_ps(radiusY, yCircleSSE);
 
-			primaryRays[0] = camera.GetPrimaryRay(coordinatesX[0], coordinatesY[0]);
-			primaryRays[1] = camera.GetPrimaryRay(coordinatesX[1], coordinatesY[1]);
-			primaryRays[2] = camera.GetPrimaryRay(coordinatesX[2], coordinatesY[2]);
-			primaryRays[3] = camera.GetPrimaryRay(coordinatesX[3], coordinatesY[3]);
-			primaryRays[4] = camera.GetPrimaryRay(coordinatesX[4], coordinatesY[4]);
-			primaryRays[5] = camera.GetPrimaryRay(coordinatesX[5], coordinatesY[5]);
-			primaryRays[6] = camera.GetPrimaryRay(coordinatesX[6], coordinatesY[6]);
-			primaryRays[7] = camera.GetPrimaryRay(coordinatesX[7], coordinatesY[7]);
+			camera.GetPrimaryRay(coordinatesX[0], coordinatesY[0], primaryRays[0].O, primaryRays[0].D,
+			                     float2{radiusX[0], radiusY[0]});
+			camera.GetPrimaryRay(coordinatesX[1], coordinatesY[1], primaryRays[1].O, primaryRays[1].D,
+			                     float2{radiusX[1], radiusY[1]});
+			camera.GetPrimaryRay(coordinatesX[2], coordinatesY[2], primaryRays[2].O, primaryRays[2].D,
+			                     float2{radiusX[2], radiusY[2]});
+			camera.GetPrimaryRay(coordinatesX[3], coordinatesY[3], primaryRays[3].O, primaryRays[3].D,
+			                     float2{radiusX[3], radiusY[3]});
+			camera.GetPrimaryRay(coordinatesX[4], coordinatesY[4], primaryRays[4].O, primaryRays[4].D,
+			                     float2{radiusX[4], radiusY[4]});
+			camera.GetPrimaryRay(coordinatesX[5], coordinatesY[5], primaryRays[5].O, primaryRays[5].D,
+			                     float2{radiusX[5], radiusY[5]});
+			camera.GetPrimaryRay(coordinatesX[6], coordinatesY[6], primaryRays[6].O, primaryRays[6].D,
+			                     float2{radiusX[6], radiusY[6]});
+			camera.GetPrimaryRay(coordinatesX[7], coordinatesY[7], primaryRays[7].O, primaryRays[7].D,
+			                     float2{radiusX[7], radiusY[7]});
+
+			primaryRays[0].rD4 = SlowReciprocal(primaryRays[0].D4);
+			primaryRays[0].D4 = normalize(primaryRays[0].D4);
+			primaryRays[0].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[0].D4);
+
+			primaryRays[1].rD4 = SlowReciprocal(primaryRays[1].D4);
+			primaryRays[1].D4 = normalize(primaryRays[1].D4);
+			primaryRays[1].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[1].D4);
+
+			primaryRays[2].rD4 = SlowReciprocal(primaryRays[2].D4);
+			primaryRays[2].D4 = normalize(primaryRays[2].D4);
+			primaryRays[2].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[2].D4);
+
+			primaryRays[3].rD4 = SlowReciprocal(primaryRays[3].D4);
+			primaryRays[3].D4 = normalize(primaryRays[3].D4);
+			primaryRays[3].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[3].D4);
+
+			primaryRays[4].rD4 = SlowReciprocal(primaryRays[4].D4);
+			primaryRays[4].D4 = normalize(primaryRays[4].D4);
+			primaryRays[4].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[4].D4);
+
+			primaryRays[5].rD4 = SlowReciprocal(primaryRays[5].D4);
+			primaryRays[5].D4 = normalize(primaryRays[5].D4);
+			primaryRays[5].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[5].D4);
+
+			primaryRays[6].rD4 = SlowReciprocal(primaryRays[6].D4);
+			primaryRays[6].D4 = normalize(primaryRays[6].D4);
+			primaryRays[6].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[6].D4);
+
+			primaryRays[7].rD4 = SlowReciprocal(primaryRays[7].D4);
+			primaryRays[7].D4 = normalize(primaryRays[7].D4);
+			primaryRays[7].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[7].D4);
 
 
 			// Trace rays and store results
@@ -1008,6 +1068,8 @@ void Renderer::Update()
 			screen->pixels[xIndex[6]] = RGBF32_to_RGB8(&newPixel[6]);
 			screen->pixels[xIndex[7]] = RGBF32_to_RGB8(&newPixel[7]);
 		}
+
+		//avx2 
 #else
 		const uint32_t pitch = y * SCRWIDTH;
 		float invWeight = 1.0f - weight;
@@ -1021,8 +1083,10 @@ void Renderer::Update()
 			const float randomXDir = RandomFloat() * antiAliasingStrength;
 			const float randomYDir = RandomFloat() * antiAliasingStrength;
 
+
 			Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
 			                                      static_cast<float>(y) + randomYDir);
+
 			//get new pixel
 			newPixel = Trace(primaryRay, maxBounces);
 			float4 pixel = newPixel;
@@ -1042,7 +1106,7 @@ void Renderer::Update()
 #ifdef PROFILE
 	}
 #else
-	         });
+});
 #endif
 
 	numRenderedFrames++;
@@ -1074,11 +1138,11 @@ void Renderer::Tick(const float deltaTime)
 
 	//DOF from Remi
 
-	Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
+	/*Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
 	for (auto& scene : voxelVolumes)
 		scene.FindNearest(focusRay);
 
-	camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
+	camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);*/
 
 
 	Update();
@@ -1130,12 +1194,13 @@ void Renderer::Shutdown()
 	fclose(f);
 }
 
-void Renderer::MouseDown(int button)
+void Renderer::MouseDown(int /*button*/)
 {
-	std::cout << "Button: " << button << std::endl;
-	Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(mousePos.x),
-	                                      static_cast<float>(mousePos.y));
-	Trace(primaryRay, 5);
+	//std::cout << "Button: " << button << std::endl;
+
+	//Ray primaryRay = {camera.GetPrimaryRay(static_cast<float>(mousePos.x),
+	//                                      static_cast<float>(mousePos.y));
+	//Trace(primaryRay, 5);
 }
 
 float3 Renderer::SampleSky(const float3& direction) const

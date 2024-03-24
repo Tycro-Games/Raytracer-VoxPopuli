@@ -390,7 +390,7 @@ float3 GenerateRandomUnitVector();
 uint RandomUInt(uint& seed);
 float RandomFloat();
 float2 RandomPointInCircle();
-
+float2 RandomPointInCircleSSE(float r);
 float RandomFloat(uint& seed);
 float Rand(float range);
 
@@ -2347,6 +2347,13 @@ inline float3 normalize(const float3& v)
 	float invLen = rsqrtf(dot(v, v));
 	return v * invLen;
 }
+
+inline __m128 normalize(const __m128& v)
+{
+	const __m128 invLen = _mm_rsqrt_ps(_mm_dp_ps(v, v, 0x7F));
+	return _mm_mul_ps(v, invLen);
+}
+
 
 inline float4 normalize(const float4& v)
 {

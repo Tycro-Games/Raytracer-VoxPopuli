@@ -26,7 +26,27 @@ Ray::Ray(const Ray& ray)
 	isInsideGlass = ray.isInsideGlass;*/
 }
 
-float3 Ray::ComputeDsign(const float3& _D) const
+Ray::Ray(const float3& origin, const float3& direction, const float3& _rD, const
+         float3& _Dsign, const float rayLength, const int) : O(origin), D(direction),
+                                                             rD(_rD), Dsign(_Dsign), t(rayLength)
+{
+	//not needed
+	/*rayNormal = ray.rayNormal;
+	indexMaterial = ray.indexMaterial;
+	isInsideGlass = ray.isInsideGlass;*/
+}
+
+Ray::Ray(const __m128& origin, const __m128& direction, const __m128& _rD, const
+         __m128& _Dsign, const float rayLength, const int) : O4(origin), D4(direction),
+                                                             rD4(_rD), Dsign4(_Dsign), t(rayLength)
+{
+	//not needed
+	/*rayNormal = ray.rayNormal;
+	indexMaterial = ray.indexMaterial;
+	isInsideGlass = ray.isInsideGlass;*/
+}
+
+float3 Ray::ComputeDsign(const float3& _D)
 {
 	const uint x_sign = (*(uint*)&_D.x >> 31);
 	const uint y_sign = (*(uint*)&_D.y >> 31);
@@ -36,7 +56,7 @@ float3 Ray::ComputeDsign(const float3& _D) const
 	               static_cast<float>(z_sign) * 2 - 1) + 1) * 0.5f;
 }
 
-float3 Ray::ComputeDsign_SSE(const __m128& m) const
+__m128 Ray::ComputeDsign_SSE(const __m128& m)
 {
 	__m128i dirSSE = _mm_castps_si128(m);
 	dirSSE = _mm_srli_epi32(dirSSE, 31);
@@ -56,10 +76,7 @@ float3 Ray::ComputeDsign_SSE(const __m128& m) const
 	//return {
 	//	static_cast<float>(signs.m128i_u32[0]), static_cast<float>(signs.m128i_u32[1]),
 	//	static_cast<float>(signs.m128i_u32[2])
-	return {
-		(result.m128_f32[0]), (result.m128_f32[1]),
-		(result.m128_f32[2])
-	};
+	return result;
 }
 
 

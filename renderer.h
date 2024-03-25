@@ -2,12 +2,9 @@
 
 namespace Tmpl8
 {
-	constexpr size_t POINT_LIGHTS = 2;
-	constexpr size_t AREA_LIGHTS = 2;
-	constexpr size_t SPOT_LIGHTS = 2;
 	constexpr size_t MAX_LIGHT_TYPES = 4;
 	//+1 for directional light
-	constexpr size_t LIGHT_COUNT = POINT_LIGHTS + SPOT_LIGHTS + AREA_LIGHTS + 1;
+
 
 	class Renderer : public TheApp
 	{
@@ -77,7 +74,12 @@ namespace Tmpl8
 		//{
 		//	/* implement if you want to detect mouse button presses */
 		//}
+		void CalculateLightCount();
+		size_t lightCount = 0;
 
+		size_t pointCount = 2;
+		size_t areaCount = 2;
+		size_t spotCount = 2;
 		void MouseDown(int button) override;
 
 		float3 SampleSky(const float3& direction) const;

@@ -95,6 +95,7 @@ void Renderer::SetUpLights()
 	pointLights.resize(2);
 	spotLights.resize(2);
 	areaLights.resize(2);
+	CalculateLightCount();
 }
 
 float3 Renderer::PointLightEvaluate(Ray& ray, const PointLightData& lightData)
@@ -164,7 +165,7 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightD
 	const float radius = lightData.radius;
 	float3 incomingLight{0};
 	const float3 k = ray.GetAlbedo(*this);
-	float3 point = OffsetRay(intersectionPoint, normal);
+	const float3 point = OffsetRay(intersectionPoint, normal);
 
 	//the same as before, we get all the needed variables
 
@@ -191,9 +192,9 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightD
 		if (IsOccluded(shadowRay))
 			continue;
 		//https://www.physicsforums.com/threads/luminance-of-a-lambertian-sphere-formula.449703/
-		const float3 lightIntensity = cosTheta * lightData.color * lightData.colorMultiplier * (1.0f / (dst *
-				dst)) * (radius * radius) *
-			PI;
+		const float3 lightIntensity = cosTheta * lightData.color * lightData.colorMultiplier * (radius * radius) *
+			PI4 / (dst *
+				dst);
 
 
 		incomingLight += lightIntensity;
@@ -470,21 +471,21 @@ void Renderer::Init()
 
 void Renderer::Illumination(Ray& ray, float3& incLight)
 {
-	const size_t randLightIndex = static_cast<size_t>(Rand(LIGHT_COUNT));
+	const size_t randLightIndex = static_cast<size_t>(Rand(static_cast<float>(lightCount)));
 	//map every index to a certain light element				
-	if (randLightIndex < POINT_LIGHTS)
+	if (randLightIndex < pointCount)
 	{
 		const auto p = (randLightIndex);
 		incLight = PointLightEvaluate(ray, pointLights[p].data);
 	}
-	else if (randLightIndex < AREA_LIGHTS + POINT_LIGHTS)
+	else if (randLightIndex < areaCount + pointCount)
 	{
-		const auto a = randLightIndex - POINT_LIGHTS;
+		const auto a = randLightIndex - pointCount;
 		incLight = AreaLightEvaluation(ray, areaLights[a].data);
 	}
-	else if (randLightIndex < AREA_LIGHTS + SPOT_LIGHTS + POINT_LIGHTS)
+	else if (randLightIndex < areaCount + spotCount + pointCount)
 	{
-		const auto s = randLightIndex - SPOT_LIGHTS - POINT_LIGHTS;
+		const auto s = randLightIndex - areaCount - pointCount;
 		incLight = SpotLightEvaluate(ray, spotLights[s].data);
 	}
 	//1 is the only directional
@@ -493,7 +494,7 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
 		incLight = DirectionalLightEvaluate(ray, dirLight.data);
 	}
 
-	incLight *= LIGHT_COUNT;
+	incLight *= static_cast<float>(lightCount);
 }
 
 
@@ -535,7 +536,7 @@ int32_t Renderer::FindNearest(Ray& ray)
 	int32_t voxelIndex = -2;
 
 
-	int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
+	const int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
 	for (int32_t i = 0; i < voxelCount; i++)
 
 	{
@@ -831,7 +832,7 @@ float3 Renderer::Absorption(const float3& color, float intensity, float distance
 	// Combining 'e' and 'c' terms into a single "density" value (stored as intensity in the material).
 	// [Credit] https://www.flipcode.com/archives/Raytracing_Topics_Techniques-Part_3_Refractions_and_Beers_Law.shtml
 	const float3 flipped_color{1.0f - color};
-	float3 exponent{
+	const float3 exponent{
 		-distanceTraveled
 		* intensity
 		* flipped_color
@@ -878,7 +879,7 @@ void Renderer::Update()
 
 	weight = 1.0f / (static_cast<float>(numRenderedFrames) + 1.0f);
 
-	static __m256 PI2 = _mm256_set1_ps(2 * PI);
+	static __m256 PI2SSE = _mm256_set1_ps(2 * PI);
 
 	static __m256 antiAliasingStrengthSSE = _mm256_set1_ps(antiAliasingStrength);
 
@@ -920,7 +921,7 @@ void Renderer::Update()
 			         const __m256 thetaSSE = _mm256_mul_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
 			                                                             RandomFloat(),
 			                                                             RandomFloat(), RandomFloat(), RandomFloat(),
-			                                                             RandomFloat()), PI2);
+			                                                             RandomFloat()), PI2SSE);
 			         const __m256 xCircleSSE = _mm256_mul_ps(_mm256_cos_ps(thetaSSE), rSSE);
 			         const __m256 yCircleSSE = _mm256_mul_ps(_mm256_sin_ps(thetaSSE), rSSE);
 
@@ -1191,31 +1192,37 @@ float Renderer::GetLuminance(const float3& color)
 void Renderer::AddPointLight()
 {
 	pointLights.push_back(PointLight{});
+	CalculateLightCount();
 }
 
 void Renderer::RemovePointLight()
 {
 	pointLights.pop_back();
+	CalculateLightCount();
 }
 
 void Renderer::AddAreaLight()
 {
 	areaLights.push_back(SphereAreaLight{});
+	CalculateLightCount();
 }
 
 void Renderer::RemoveAreaLight()
 {
 	areaLights.pop_back();
+	CalculateLightCount();
 }
 
 void Renderer::AddSpotLight()
 {
 	spotLights.push_back(SpotLight{});
+	CalculateLightCount();
 }
 
 void Renderer::RemoveSpotLight()
 {
 	spotLights.pop_back();
+	CalculateLightCount();
 }
 
 
@@ -1228,6 +1235,14 @@ void Renderer::Shutdown()
 	FILE* f = fopen("camera.bin", "wb");
 	fwrite(&camera, 1, sizeof(Camera), f);
 	fclose(f);
+}
+
+void Renderer::CalculateLightCount()
+{
+	pointCount = pointLights.size();
+	spotCount = spotLights.size();
+	areaCount = areaLights.size();
+	lightCount = pointCount + spotCount + areaCount + 1; //directional light is one
 }
 
 void Renderer::MouseDown(int /*button*/)

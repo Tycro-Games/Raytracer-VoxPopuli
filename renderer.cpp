@@ -609,7 +609,7 @@ int32_t Renderer::FindNearest(Ray& ray)
 // -----------------------------------------------------------
 float3 Renderer::Trace(Ray& ray, int depth)
 {
-	return {0};
+	//return {0};
 
 	if (depth < 0)
 	{
@@ -893,186 +893,189 @@ void Renderer::Update()
 #endif
 
 #if 1
-		const __m256 ySSE = _mm256_cvtepi32_ps(_mm256_set1_epi32(y));
+		         const __m256 ySSE = _mm256_cvtepi32_ps(_mm256_set1_epi32(y));
 
-		const __m256 weightSSE = _mm256_set1_ps(weight);
-		const __m256 invWeightSSE = _mm256_set1_ps(1.0f - weight);
-		const __m256i pitchSSE = _mm256_set1_epi32(y * SCRWIDTH);
-		for (int32_t x = 0; x < SCRWIDTH; x += 8)
-		{
-			__m256i xIndexSSE = _mm256_set_epi32(x + 7, x + 6, x + 5,
-			                                     x + 4, x + 3,
-			                                     x + 2, x + 1,
-			                                     x);
-			const __m256 xSSE = _mm256_cvtepi32_ps(xIndexSSE);
-
-
-			__m256 randomXDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
-			                                     RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
-			__m256 randomYDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
-			                                     RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
-			const __m256 rSSE = _mm256_sqrt_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
-			                                                 RandomFloat(),
-			                                                 RandomFloat(), RandomFloat(), RandomFloat(),
-			                                                 RandomFloat()));
-			const __m256 thetaSSE = _mm256_mul_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
-			                                                    RandomFloat(),
-			                                                    RandomFloat(), RandomFloat(), RandomFloat(),
-			                                                    RandomFloat()), PI2);
-			const __m256 xCircleSSE = _mm256_mul_ps(_mm256_cos_ps(thetaSSE), rSSE);
-			const __m256 yCircleSSE = _mm256_mul_ps(_mm256_sin_ps(thetaSSE), rSSE);
-
-			randomXDirSSE = _mm256_fmadd_ps(randomXDirSSE, antiAliasingStrengthSSE,
-			                                xSSE);
-
-			float coordinatesX[8];
-			float coordinatesY[8];
-			_mm256_store_ps(coordinatesX, randomXDirSSE);
-
-			randomYDirSSE = _mm256_fmadd_ps(randomYDirSSE, antiAliasingStrengthSSE,
-			                                ySSE);
-			_mm256_store_ps(coordinatesY, randomYDirSSE);
-
-			// Compute primary rays
-			Ray primaryRays[8];
-			float radiusX[8];
-			float radiusY[8];
-			_mm256_store_ps(radiusX, xCircleSSE);
-			_mm256_store_ps(radiusY, yCircleSSE);
-
-			camera.GetPrimaryRay(coordinatesX[0], coordinatesY[0], primaryRays[0].O, primaryRays[0].D,
-			                     float2{radiusX[0], radiusY[0]});
-			camera.GetPrimaryRay(coordinatesX[1], coordinatesY[1], primaryRays[1].O, primaryRays[1].D,
-			                     float2{radiusX[1], radiusY[1]});
-			camera.GetPrimaryRay(coordinatesX[2], coordinatesY[2], primaryRays[2].O, primaryRays[2].D,
-			                     float2{radiusX[2], radiusY[2]});
-			camera.GetPrimaryRay(coordinatesX[3], coordinatesY[3], primaryRays[3].O, primaryRays[3].D,
-			                     float2{radiusX[3], radiusY[3]});
-			camera.GetPrimaryRay(coordinatesX[4], coordinatesY[4], primaryRays[4].O, primaryRays[4].D,
-			                     float2{radiusX[4], radiusY[4]});
-			camera.GetPrimaryRay(coordinatesX[5], coordinatesY[5], primaryRays[5].O, primaryRays[5].D,
-			                     float2{radiusX[5], radiusY[5]});
-			camera.GetPrimaryRay(coordinatesX[6], coordinatesY[6], primaryRays[6].O, primaryRays[6].D,
-			                     float2{radiusX[6], radiusY[6]});
-			camera.GetPrimaryRay(coordinatesX[7], coordinatesY[7], primaryRays[7].O, primaryRays[7].D,
-			                     float2{radiusX[7], radiusY[7]});
-
-			primaryRays[0].rD4 = SlowReciprocal(primaryRays[0].D4);
-			primaryRays[0].D4 = normalize(primaryRays[0].D4);
-			primaryRays[0].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[0].D4);
-
-			primaryRays[1].rD4 = SlowReciprocal(primaryRays[1].D4);
-			primaryRays[1].D4 = normalize(primaryRays[1].D4);
-			primaryRays[1].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[1].D4);
-
-			primaryRays[2].rD4 = SlowReciprocal(primaryRays[2].D4);
-			primaryRays[2].D4 = normalize(primaryRays[2].D4);
-			primaryRays[2].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[2].D4);
-			//and so on
-			primaryRays[3].rD4 = SlowReciprocal(primaryRays[3].D4);
-			primaryRays[3].D4 = normalize(primaryRays[3].D4);
-			primaryRays[3].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[3].D4);
-
-			primaryRays[4].rD4 = SlowReciprocal(primaryRays[4].D4);
-			primaryRays[4].D4 = normalize(primaryRays[4].D4);
-			primaryRays[4].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[4].D4);
-
-			primaryRays[5].rD4 = SlowReciprocal(primaryRays[5].D4);
-			primaryRays[5].D4 = normalize(primaryRays[5].D4);
-			primaryRays[5].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[5].D4);
-
-			primaryRays[6].rD4 = SlowReciprocal(primaryRays[6].D4);
-			primaryRays[6].D4 = normalize(primaryRays[6].D4);
-			primaryRays[6].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[6].D4);
-
-			primaryRays[7].rD4 = SlowReciprocal(primaryRays[7].D4);
-			primaryRays[7].D4 = normalize(primaryRays[7].D4);
-			primaryRays[7].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[7].D4);
+		         const __m256 weightSSE = _mm256_set1_ps(weight);
+		         const __m256 invWeightSSE = _mm256_set1_ps(1.0f - weight);
+		         const __m256i pitchSSE = _mm256_set1_epi32(y * SCRWIDTH);
+		         for (int32_t x = 0; x < SCRWIDTH; x += 8)
+		         {
+			         __m256i xIndexSSE = _mm256_set_epi32(x + 7, x + 6, x + 5,
+			                                              x + 4, x + 3,
+			                                              x + 2, x + 1,
+			                                              x);
+			         const __m256 xSSE = _mm256_cvtepi32_ps(xIndexSSE);
 
 
-			// Trace rays and store results
-			float4 newPixels[8];
-
-			newPixels[0] = Trace(primaryRays[0], maxBounces);
-			newPixels[1] = Trace(primaryRays[1], maxBounces);
-			newPixels[2] = Trace(primaryRays[2], maxBounces);
-			newPixels[3] = Trace(primaryRays[3], maxBounces);
-			newPixels[4] = Trace(primaryRays[4], maxBounces);
-			newPixels[5] = Trace(primaryRays[5], maxBounces);
-			newPixels[6] = Trace(primaryRays[6], maxBounces);
-			newPixels[7] = Trace(primaryRays[7], maxBounces);
+			         __m256 randomXDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
+			                                              RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
+			         __m256 randomYDirSSE = _mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat(),
+			                                              RandomFloat(), RandomFloat(), RandomFloat(), RandomFloat());
 
 
-			const __m256 pixelSSE = _mm256_loadu_ps(&newPixels[6].x);
-			const __m256 pixel1SSE = _mm256_loadu_ps(&newPixels[4].x);
-			const __m256 pixel2SSE = _mm256_loadu_ps(&newPixels[2].x);
-			const __m256 pixel3SSE = _mm256_loadu_ps(&newPixels[0].x);
+			         const __m256 rSSE = _mm256_sqrt_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                          RandomFloat(),
+			                                                          RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                          RandomFloat()));
+			         const __m256 thetaSSE = _mm256_mul_ps(_mm256_set_ps(RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                             RandomFloat(),
+			                                                             RandomFloat(), RandomFloat(), RandomFloat(),
+			                                                             RandomFloat()), PI2);
+			         const __m256 xCircleSSE = _mm256_mul_ps(_mm256_cos_ps(thetaSSE), rSSE);
+			         const __m256 yCircleSSE = _mm256_mul_ps(_mm256_sin_ps(thetaSSE), rSSE);
 
-			xIndexSSE = _mm256_add_epi32(xIndexSSE, pitchSSE);
+			         randomXDirSSE = _mm256_fmadd_ps(randomXDirSSE, antiAliasingStrengthSSE,
+			                                         xSSE);
 
-			int32_t xIndex[8];
-			_mm256_storeu_si256(reinterpret_cast<__m256i*>(xIndex), xIndexSSE);
+			         float coordinatesX[8];
+			         float coordinatesY[8];
+			         _mm256_store_ps(coordinatesX, randomXDirSSE);
 
-			const __m256 accumulatorSSE1 = _mm256_loadu_ps(&accumulator[xIndex[6]].x);
-			const __m256 accumulatorSSE2 = _mm256_loadu_ps(&accumulator[xIndex[4]].x);
-			const __m256 accumulatorSSE3 = _mm256_loadu_ps(&accumulator[xIndex[2]].x);
-			const __m256 accumulatorSSE4 = _mm256_loadu_ps(&accumulator[xIndex[0]].x);
+			         randomYDirSSE = _mm256_fmadd_ps(randomYDirSSE, antiAliasingStrengthSSE,
+			                                         ySSE);
+			         _mm256_store_ps(coordinatesY, randomYDirSSE);
+
+			         // Compute primary rays
+			         Ray primaryRays[8];
+			         float radiusX[8];
+			         float radiusY[8];
+			         _mm256_store_ps(radiusX, xCircleSSE);
+			         _mm256_store_ps(radiusY, yCircleSSE);
+
+			         camera.GetPrimaryRay(coordinatesX[0], coordinatesY[0], primaryRays[0].O, primaryRays[0].D,
+			                              float2{radiusX[0], radiusY[0]});
+			         camera.GetPrimaryRay(coordinatesX[1], coordinatesY[1], primaryRays[1].O, primaryRays[1].D,
+			                              float2{radiusX[1], radiusY[1]});
+			         //so on to 8
+			         camera.GetPrimaryRay(coordinatesX[2], coordinatesY[2], primaryRays[2].O, primaryRays[2].D,
+			                              float2{radiusX[2], radiusY[2]});
+			         camera.GetPrimaryRay(coordinatesX[3], coordinatesY[3], primaryRays[3].O, primaryRays[3].D,
+			                              float2{radiusX[3], radiusY[3]});
+			         camera.GetPrimaryRay(coordinatesX[4], coordinatesY[4], primaryRays[4].O, primaryRays[4].D,
+			                              float2{radiusX[4], radiusY[4]});
+			         camera.GetPrimaryRay(coordinatesX[5], coordinatesY[5], primaryRays[5].O, primaryRays[5].D,
+			                              float2{radiusX[5], radiusY[5]});
+			         camera.GetPrimaryRay(coordinatesX[6], coordinatesY[6], primaryRays[6].O, primaryRays[6].D,
+			                              float2{radiusX[6], radiusY[6]});
+			         camera.GetPrimaryRay(coordinatesX[7], coordinatesY[7], primaryRays[7].O, primaryRays[7].D,
+			                              float2{radiusX[7], radiusY[7]});
+
+			         primaryRays[0].rD4 = SlowReciprocal(primaryRays[0].D4);
+			         primaryRays[0].D4 = normalize(primaryRays[0].D4);
+			         primaryRays[0].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[0].D4);
+
+			         primaryRays[1].rD4 = SlowReciprocal(primaryRays[1].D4);
+			         primaryRays[1].D4 = normalize(primaryRays[1].D4);
+			         primaryRays[1].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[1].D4);
+			         //so on to 8
+			         primaryRays[2].rD4 = SlowReciprocal(primaryRays[2].D4);
+			         primaryRays[2].D4 = normalize(primaryRays[2].D4);
+			         primaryRays[2].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[2].D4);
+			         //and so on
+			         primaryRays[3].rD4 = SlowReciprocal(primaryRays[3].D4);
+			         primaryRays[3].D4 = normalize(primaryRays[3].D4);
+			         primaryRays[3].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[3].D4);
+
+			         primaryRays[4].rD4 = SlowReciprocal(primaryRays[4].D4);
+			         primaryRays[4].D4 = normalize(primaryRays[4].D4);
+			         primaryRays[4].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[4].D4);
+
+			         primaryRays[5].rD4 = SlowReciprocal(primaryRays[5].D4);
+			         primaryRays[5].D4 = normalize(primaryRays[5].D4);
+			         primaryRays[5].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[5].D4);
+
+			         primaryRays[6].rD4 = SlowReciprocal(primaryRays[6].D4);
+			         primaryRays[6].D4 = normalize(primaryRays[6].D4);
+			         primaryRays[6].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[6].D4);
+
+			         primaryRays[7].rD4 = SlowReciprocal(primaryRays[7].D4);
+			         primaryRays[7].D4 = normalize(primaryRays[7].D4);
+			         primaryRays[7].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[7].D4);
 
 
-			const __m256 blendedSSE1 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE1,
-			                                           _mm256_mul_ps(
-				                                           pixelSSE,
-				                                           weightSSE));
-			const __m256 blendedSSE2 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE2,
-			                                           _mm256_mul_ps(
-				                                           pixel1SSE,
-				                                           weightSSE));
-			const __m256 blendedSSE3 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE3,
-			                                           _mm256_mul_ps(
-				                                           pixel2SSE,
-				                                           weightSSE));
-			const __m256 blendedSSE4 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE4,
-			                                           _mm256_mul_ps(
-				                                           pixel3SSE,
-				                                           weightSSE));
+			         // Trace rays and store results
+			         float4 newPixels[8];
 
-			//display
-			float4 newPixel[8];
-			_mm256_store_ps(&newPixel[6].x, blendedSSE1);
-			_mm256_store_ps(&newPixel[4].x, blendedSSE2);
-			_mm256_store_ps(&newPixel[2].x, blendedSSE3);
-			_mm256_store_ps(&newPixel[0].x, blendedSSE4);
-
-			accumulator[xIndex[0]] = newPixel[0];
-			accumulator[xIndex[1]] = newPixel[1];
-			accumulator[xIndex[2]] = newPixel[2];
-			accumulator[xIndex[3]] = newPixel[3];
-			accumulator[xIndex[4]] = newPixel[4];
-			accumulator[xIndex[5]] = newPixel[5];
-			accumulator[xIndex[6]] = newPixel[6];
-			accumulator[xIndex[7]] = newPixel[7];
+			         newPixels[0] = Trace(primaryRays[0], maxBounces);
+			         newPixels[1] = Trace(primaryRays[1], maxBounces);
+			         newPixels[2] = Trace(primaryRays[2], maxBounces);
+			         newPixels[3] = Trace(primaryRays[3], maxBounces);
+			         newPixels[4] = Trace(primaryRays[4], maxBounces);
+			         newPixels[5] = Trace(primaryRays[5], maxBounces);
+			         newPixels[6] = Trace(primaryRays[6], maxBounces);
+			         newPixels[7] = Trace(primaryRays[7], maxBounces);
 
 
-			newPixel[0] = ApplyReinhardJodie(newPixel[0]);
-			newPixel[1] = ApplyReinhardJodie(newPixel[1]);
-			newPixel[2] = ApplyReinhardJodie(newPixel[2]);
-			newPixel[3] = ApplyReinhardJodie(newPixel[3]);
-			newPixel[4] = ApplyReinhardJodie(newPixel[4]);
-			newPixel[5] = ApplyReinhardJodie(newPixel[5]);
-			newPixel[6] = ApplyReinhardJodie(newPixel[6]);
-			newPixel[7] = ApplyReinhardJodie(newPixel[7]);
+			         const __m256 pixelSSE = _mm256_loadu_ps(&newPixels[6].x);
+			         const __m256 pixel1SSE = _mm256_loadu_ps(&newPixels[4].x);
+			         const __m256 pixel2SSE = _mm256_loadu_ps(&newPixels[2].x);
+			         const __m256 pixel3SSE = _mm256_loadu_ps(&newPixels[0].x);
 
-			screen->pixels[xIndex[0]] = RGBF32_to_RGB8(&newPixel[0]);
-			screen->pixels[xIndex[1]] = RGBF32_to_RGB8(&newPixel[1]);
-			screen->pixels[xIndex[2]] = RGBF32_to_RGB8(&newPixel[2]);
-			screen->pixels[xIndex[3]] = RGBF32_to_RGB8(&newPixel[3]);
-			screen->pixels[xIndex[4]] = RGBF32_to_RGB8(&newPixel[4]);
-			screen->pixels[xIndex[5]] = RGBF32_to_RGB8(&newPixel[5]);
-			screen->pixels[xIndex[6]] = RGBF32_to_RGB8(&newPixel[6]);
-			screen->pixels[xIndex[7]] = RGBF32_to_RGB8(&newPixel[7]);
-		}
+			         xIndexSSE = _mm256_add_epi32(xIndexSSE, pitchSSE);
 
-		//avx2 
+			         int32_t xIndex[8];
+			         _mm256_storeu_si256(reinterpret_cast<__m256i*>(xIndex), xIndexSSE);
+
+			         const __m256 accumulatorSSE1 = _mm256_loadu_ps(&accumulator[xIndex[6]].x);
+			         const __m256 accumulatorSSE2 = _mm256_loadu_ps(&accumulator[xIndex[4]].x);
+			         const __m256 accumulatorSSE3 = _mm256_loadu_ps(&accumulator[xIndex[2]].x);
+			         const __m256 accumulatorSSE4 = _mm256_loadu_ps(&accumulator[xIndex[0]].x);
+
+
+			         const __m256 blendedSSE1 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE1,
+			                                                    _mm256_mul_ps(
+				                                                    pixelSSE,
+				                                                    weightSSE));
+			         const __m256 blendedSSE2 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE2,
+			                                                    _mm256_mul_ps(
+				                                                    pixel1SSE,
+				                                                    weightSSE));
+			         const __m256 blendedSSE3 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE3,
+			                                                    _mm256_mul_ps(
+				                                                    pixel2SSE,
+				                                                    weightSSE));
+			         const __m256 blendedSSE4 = _mm256_fmadd_ps(invWeightSSE, accumulatorSSE4,
+			                                                    _mm256_mul_ps(
+				                                                    pixel3SSE,
+				                                                    weightSSE));
+
+			         //display
+			         float4 newPixel[8];
+			         _mm256_store_ps(&newPixel[6].x, blendedSSE1);
+			         _mm256_store_ps(&newPixel[4].x, blendedSSE2);
+			         _mm256_store_ps(&newPixel[2].x, blendedSSE3);
+			         _mm256_store_ps(&newPixel[0].x, blendedSSE4);
+
+			         accumulator[xIndex[0]] = newPixel[0];
+			         accumulator[xIndex[1]] = newPixel[1];
+			         accumulator[xIndex[2]] = newPixel[2];
+			         accumulator[xIndex[3]] = newPixel[3];
+			         accumulator[xIndex[4]] = newPixel[4];
+			         accumulator[xIndex[5]] = newPixel[5];
+			         accumulator[xIndex[6]] = newPixel[6];
+			         accumulator[xIndex[7]] = newPixel[7];
+
+
+			         newPixel[0] = ApplyReinhardJodie(newPixel[0]);
+			         newPixel[1] = ApplyReinhardJodie(newPixel[1]);
+			         newPixel[2] = ApplyReinhardJodie(newPixel[2]);
+			         newPixel[3] = ApplyReinhardJodie(newPixel[3]);
+			         newPixel[4] = ApplyReinhardJodie(newPixel[4]);
+			         newPixel[5] = ApplyReinhardJodie(newPixel[5]);
+			         newPixel[6] = ApplyReinhardJodie(newPixel[6]);
+			         newPixel[7] = ApplyReinhardJodie(newPixel[7]);
+
+			         screen->pixels[xIndex[0]] = RGBF32_to_RGB8(&newPixel[0]);
+			         screen->pixels[xIndex[1]] = RGBF32_to_RGB8(&newPixel[1]);
+			         screen->pixels[xIndex[2]] = RGBF32_to_RGB8(&newPixel[2]);
+			         screen->pixels[xIndex[3]] = RGBF32_to_RGB8(&newPixel[3]);
+			         screen->pixels[xIndex[4]] = RGBF32_to_RGB8(&newPixel[4]);
+			         screen->pixels[xIndex[5]] = RGBF32_to_RGB8(&newPixel[5]);
+			         screen->pixels[xIndex[6]] = RGBF32_to_RGB8(&newPixel[6]);
+			         screen->pixels[xIndex[7]] = RGBF32_to_RGB8(&newPixel[7]);
+		         }
+
+		         //avx2 
 #else
 		const uint32_t pitch = y * SCRWIDTH;
 		const float invWeight = 1.0f - weight;

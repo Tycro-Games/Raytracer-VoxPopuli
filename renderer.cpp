@@ -92,6 +92,9 @@ void Renderer::InitMultithreading()
 
 void Renderer::SetUpLights()
 {
+	pointLights.resize(2);
+	spotLights.resize(2);
+	areaLights.resize(2);
 }
 
 float3 Renderer::PointLightEvaluate(Ray& ray, const PointLightData& lightData)
@@ -885,8 +888,8 @@ void Renderer::Update()
 #else
 
 	for_each(execution::par, vertIterator.begin(), vertIterator.end(),
-		[this](const int32_t y)
-		{
+	         [this](const int32_t y)
+	         {
 #endif
 
 #if 1
@@ -965,7 +968,7 @@ void Renderer::Update()
 			primaryRays[2].rD4 = SlowReciprocal(primaryRays[2].D4);
 			primaryRays[2].D4 = normalize(primaryRays[2].D4);
 			primaryRays[2].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[2].D4);
-
+			//and so on
 			primaryRays[3].rD4 = SlowReciprocal(primaryRays[3].D4);
 			primaryRays[3].D4 = normalize(primaryRays[3].D4);
 			primaryRays[3].Dsign4 = Ray::ComputeDsign_SSE(primaryRays[3].D4);
@@ -1072,7 +1075,7 @@ void Renderer::Update()
 		//avx2 
 #else
 		const uint32_t pitch = y * SCRWIDTH;
-		float invWeight = 1.0f - weight;
+		const float invWeight = 1.0f - weight;
 
 		for (uint32_t x = 0; x < SCRWIDTH; x++)
 		{
@@ -1106,7 +1109,7 @@ void Renderer::Update()
 #ifdef PROFILE
 	}
 #else
-});
+	         });
 #endif
 
 	numRenderedFrames++;
@@ -1180,6 +1183,36 @@ float3 Renderer::ApplyReinhardJodie(const float3& color)
 float Renderer::GetLuminance(const float3& color)
 {
 	return dot(color, {0.2126f, 0.7152f, 0.0722f});
+}
+
+void Renderer::AddPointLight()
+{
+	pointLights.push_back(PointLight{});
+}
+
+void Renderer::RemovePointLight()
+{
+	pointLights.pop_back();
+}
+
+void Renderer::AddAreaLight()
+{
+	areaLights.push_back(SphereAreaLight{});
+}
+
+void Renderer::RemoveAreaLight()
+{
+	areaLights.pop_back();
+}
+
+void Renderer::AddSpotLight()
+{
+	spotLights.push_back(SpotLight{});
+}
+
+void Renderer::RemoveSpotLight()
+{
+	spotLights.pop_back();
 }
 
 
@@ -1261,6 +1294,16 @@ void Renderer::HandleImguiPointLights()
 
 		pointIndex++;
 	}
+	if (ImGui::Button("Create new point light"))
+	{
+		AddPointLight();
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Remove last point light"))
+	{
+		RemovePointLight();
+		ResetAccumulator();
+	}
 }
 
 
@@ -1326,6 +1369,16 @@ void Renderer::HandleImguiAreaLights()
 
 		pointIndex++;
 	}
+	if (ImGui::Button("Create new area light"))
+	{
+		AddAreaLight();
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Remove last area light"))
+	{
+		RemoveAreaLight();
+		ResetAccumulator();
+	}
 }
 
 
@@ -1376,6 +1429,16 @@ void Renderer::HandleImguiSpotLights()
 		}
 
 		spotIndex++;
+	}
+	if (ImGui::Button("Create new spot light"))
+	{
+		AddSpotLight();
+		ResetAccumulator();
+	}
+	if (ImGui::Button("Remove last spot light"))
+	{
+		RemoveSpotLight();
+		ResetAccumulator();
 	}
 }
 

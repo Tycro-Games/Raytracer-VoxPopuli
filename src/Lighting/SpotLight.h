@@ -20,7 +20,7 @@ struct SpotLightData
 class SpotLight
 {
 public:
-	SpotLightData data{{0, 0, 0}, {1, 0, 0}, {0}, CosDegrees(45.0f)};
+	SpotLightData data{{-1.0f, .5f, -1.0f}, {1, 0, 0}, {0.5f}, CosDegrees(45.0f)};
 
 private:
 };

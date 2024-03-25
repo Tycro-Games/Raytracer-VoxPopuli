@@ -53,6 +53,12 @@ namespace Tmpl8
 		void Tick(float deltaTime) override;
 		float3 ApplyReinhardJodie(const float3& color);
 		float GetLuminance(const float3& color);
+		void AddPointLight();
+		void RemovePointLight();
+		void AddAreaLight();
+		void RemoveAreaLight();
+		void AddSpotLight();
+		void RemoveSpotLight();
 		void HandleImguiPointLights();
 		void HandleImguiAreaLights();
 		void HandleImguiSpotLights();
@@ -126,9 +132,9 @@ namespace Tmpl8
 
 		//std::vector<shared_ptr<DiffuseMaterial>> reflectiveMaterials;
 		//lights
-		PointLight pointLights[2];
-		SphereAreaLight areaLights[2];
-		SpotLight spotLights[2];
+		std::vector<PointLight> pointLights;
+		std::vector<SphereAreaLight> areaLights;
+		std::vector<SpotLight> spotLights;
 		SkyDome skyDome;
 		DirectionalLight dirLight;
 

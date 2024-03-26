@@ -163,27 +163,6 @@ float3 Ray::UintToFloat3(uint col) const
 }
 
 
-float3 Ray::GetAlbedo(const Renderer& scene) const
-{
-	return scene.materials[indexMaterial]->albedo;
-}
-
-float Ray::GetEmissive(const Renderer& scene) const
-{
-	return scene.materials[indexMaterial]->emissiveStrength;
-}
-
-float Ray::GetRefractivity(const Renderer& scene) const
-{
-	return scene.materials[indexMaterial]->IOR;
-}
-
-float Ray::GetRoughness(const Renderer& scene) const
-{
-	return scene.materials[indexMaterial]->roughness;
-}
-
-
 float Cube::Intersect(const Ray& ray) const
 {
 	//rewritten by chatgpt

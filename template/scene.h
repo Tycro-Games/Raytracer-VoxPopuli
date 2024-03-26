@@ -86,10 +86,7 @@ namespace Tmpl8
 
 		float3 GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const;
 		float3 UintToFloat3(uint col) const;
-		float3 GetAlbedo(const Renderer& scene) const;
-		float GetEmissive(const Renderer& scene) const;
-		float GetRoughness(const Renderer& scene) const;
-		float GetRefractivity(const Renderer& scene) const;
+
 		//E reflected = E incoming multiplied by C material
 
 		float3 GetAbsorption(const float3& I) const; // TODO: implement

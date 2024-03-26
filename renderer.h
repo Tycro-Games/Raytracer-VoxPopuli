@@ -16,6 +16,10 @@ namespace Tmpl8
 		float3 AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightData) const;
 		bool IsOccluded(Ray& ray) const;
 		bool IsOccludedSpheres(Ray& ray) const;
+		float3 GetAlbedo(size_t indexMaterial) const;
+		float GetEmissive(size_t indexMaterial) const;
+		float GetRefractivity(size_t indexMaterial) const;
+		float GetRoughness(size_t indexMaterial) const;
 		float3 DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& lightData);
 		void ResetAccumulator();
 		void MaterialSetUp();

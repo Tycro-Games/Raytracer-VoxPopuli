@@ -117,7 +117,7 @@ float3 Renderer::PointLightEvaluate(Ray& ray, const PointLightData& lightData)
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color * (1.0f / (dst * dst));
 	//materi
 	const float3 originRay = OffsetRay(intersectionPoint, normal);
-	const float3 k = ray.GetAlbedo(*this);
+	const float3 k = GetAlbedo(ray.indexMaterial);
 
 	Ray shadowRay(originRay, dirNormalized);
 	// we do not shoot the ray behind the light source
@@ -146,7 +146,7 @@ float3 Renderer::SpotLightEvaluate(const Ray& ray, const SpotLightData& lightDat
 
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color / (dst * dst);
 	//material evaluation
-	const float3 k = ray.GetAlbedo(*this);
+	const float3 k = GetAlbedo(ray.indexMaterial);
 
 
 	Ray shadowRay(OffsetRay(intersectionPoint, normal), dirNormalized);
@@ -164,7 +164,7 @@ float3 Renderer::AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightD
 	const float3 center = lightData.position;
 	const float radius = lightData.radius;
 	float3 incomingLight{0};
-	const float3 k = ray.GetAlbedo(*this);
+	const float3 k = GetAlbedo(ray.indexMaterial);;
 	const float3 point = OffsetRay(intersectionPoint, normal);
 
 	//the same as before, we get all the needed variables
@@ -260,6 +260,27 @@ bool Renderer::IsOccludedSpheres(Ray& ray) const
 	return false;
 }
 
+float3 Renderer::GetAlbedo(const size_t indexMaterial) const
+{
+	return materials[indexMaterial]->albedo;
+}
+
+float Renderer::GetEmissive(const size_t indexMaterial) const
+{
+	return materials[indexMaterial]->emissiveStrength;
+}
+
+float Renderer::GetRefractivity(const size_t indexMaterial) const
+{
+	return materials[indexMaterial]->IOR;
+}
+
+float Renderer::GetRoughness(const size_t indexMaterial) const
+{
+	return materials[indexMaterial]->roughness;
+}
+
+
 float3 Renderer::DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& lightData)
 {
 	const float3 intersectionPoint = ray.IntersectionPoint();
@@ -274,7 +295,7 @@ float3 Renderer::DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& 
 		return 0;
 	const float3 lightIntensity = max(0.0f, cosTheta) * lightData.color;
 	//material evaluation
-	const float3 k = ray.GetAlbedo(*this);
+	const float3 k = GetAlbedo(ray.indexMaterial);
 
 	Ray shadowRay(OffsetRay(intersectionPoint, normal), (dir));
 
@@ -581,27 +602,27 @@ int32_t Renderer::FindNearest(Ray& ray)
 	}
 
 	//get the nearest t
-	//{
-	//	Ray sphereHit{ray.O, ray.D};
+	{
+		Ray sphereHit{ray.O, ray.D};
 
-	//	for (auto& sphere : spheres)
-	//	{
-	//		sphere.Hit(sphereHit);
-	//	}
-	//	for (auto& triangle : triangles)
-	//	{
-	//		triangle.Hit(sphereHit);
-	//	}
-	//	//change to the closest ray information
-	//	if (ray.t > sphereHit.t)
-	//	{
-	//		ray.t = sphereHit.t;
-	//		ray.indexMaterial = sphereHit.indexMaterial;
-	//		ray.rayNormal = sphereHit.rayNormal;
-	//		ray.isInsideGlass = sphereHit.isInsideGlass;
-	//		voxelIndex = -1;
-	//	}
-	//}
+		for (auto& sphere : spheres)
+		{
+			sphere.Hit(sphereHit);
+		}
+		for (auto& triangle : triangles)
+		{
+			triangle.Hit(sphereHit);
+		}
+		//change to the closest ray information
+		if (ray.t > sphereHit.t)
+		{
+			ray.t = sphereHit.t;
+			ray.indexMaterial = sphereHit.indexMaterial;
+			ray.rayNormal = sphereHit.rayNormal;
+			ray.isInsideGlass = sphereHit.isInsideGlass;
+			voxelIndex = -1;
+		}
+	}
 	return voxelIndex;
 }
 
@@ -643,9 +664,9 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 			newRay = Ray{
 				OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
-				reflectedDirection + ray.GetRoughness(*this) * RandomSphereSample()
+				reflectedDirection + GetRoughness(ray.indexMaterial) * RandomSphereSample()
 			};
-			return Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
+			return Trace(newRay, depth - 1) * GetAlbedo(ray.indexMaterial);
 		}
 	//non-metal
 
@@ -664,14 +685,14 @@ float3 Renderer::Trace(Ray& ray, int depth)
 				Illumination(ray, incLight);
 				newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
 				color += incLight;
-				color += Trace(newRay, depth - 1) * ray.GetAlbedo(*this);
+				color += Trace(newRay, depth - 1) * GetAlbedo(ray.indexMaterial);
 			}
 			else
 			{
 				float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
 				newRay = Ray{
 					OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
-					reflectedDirection + ray.GetRoughness(*this) * RandomSphereSample()
+					reflectedDirection + GetRoughness(ray.indexMaterial) * RandomSphereSample()
 				};
 				color = Trace(newRay, depth - 1);
 			}
@@ -683,14 +704,14 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float3 color{1.0f};
 			//code for glass
 			bool isInGlass = ray.isInsideGlass;
-			float IORMaterial = ray.GetRefractivity(*this); //1.45
+			float IORMaterial = GetRefractivity(ray.indexMaterial); //1.45
 			//get the IOR
 			float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
 			//we need to get to the next voxel
 			bool isInsideVolume = true;
 			if (isInGlass)
 			{
-				color = ray.GetAlbedo(*this);
+				color = GetAlbedo(ray.indexMaterial);
 				//only the first one has glass
 				isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::GLASS);
 			}
@@ -749,8 +770,8 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 			if (isInGlass)
 			{
-				color = ray.GetAlbedo(*this);
-				intensity = ray.GetEmissive(*this);
+				color = GetAlbedo(ray.indexMaterial);
+				intensity = GetEmissive(ray.indexMaterial);
 				//only the first one has glass
 				Ray backupRay = ray;
 
@@ -804,7 +825,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			return Trace(newRay, depth - 1) * color;
 		}
 	case MaterialType::EMISSIVE:
-		return ray.GetAlbedo(*this) * ray.GetEmissive(*this);
+		return GetAlbedo(ray.indexMaterial) * GetEmissive(ray.indexMaterial);
 
 	//random materials from the models
 	default:
@@ -814,7 +835,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 		Ray newRay;
 
 		newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
-		return Trace(newRay, depth - 1) * ray.GetAlbedo(*this) + incLight;
+		return Trace(newRay, depth - 1) * GetAlbedo(ray.indexMaterial) + incLight;
 	}
 }
 

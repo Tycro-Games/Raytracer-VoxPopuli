@@ -241,6 +241,36 @@ bool Renderer::IsOccluded(Ray& ray) const
 	return false;
 }
 
+bool Renderer::IsOccludedPlayerClimbable(Ray& ray) const
+{
+	bool isFirst = true;
+	for (auto& scene : voxelVolumes)
+	{
+		if (isFirst)
+		{
+			isFirst = false;
+			continue;
+		}
+		Ray backupRay = ray;
+		ray.O = TransformPosition(ray.O, scene.invMatrix);
+
+		ray.D = TransformVector(ray.D, scene.invMatrix);
+
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+		ray.Dsign = ray.ComputeDsign(ray.D);
+		if (scene.IsOccluded(ray))
+		{
+			backupRay.t = ray.t;
+			backupRay.CopyToPrevRay(ray);
+			return true;
+		}
+		backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);
+	}
+
+	return false;
+}
+
 bool Renderer::IsOccludedSpheres(Ray& ray) const
 {
 	//if (mainScene.IsOccluded(ray))
@@ -417,17 +447,18 @@ void Renderer::RemoveVoxelVolume()
 
 void Renderer::AddVoxelVolume()
 {
-	voxelVolumes.emplace_back(Scene({0}));
-	//const float3 rot = float3{15.0f, 0.0f, 0.0f};
-	//voxelVolumes[0].cube.rotation = rot;
-	//voxelVolumes[0].SetTransform(rot * DEG2RAD);
+	voxelVolumes.emplace_back(Scene({0}, 16));
+	voxelVolumes.emplace_back(Scene({0.0f, -1.0f, 0.0f}, 1));
+	voxelVolumes[0].LoadModel(*this, "assets/player.vox");
+	voxelVolumes[1].scale = {5.0f, 1.0f, 5.0f};
+	voxelVolumes[1].SetTransform({0});
 }
 
 void Renderer::ShapesSetUp()
 {
 	//AddSphere();
 	AddVoxelVolume();
-	constexpr int sizeX = 6;
+	/*constexpr int sizeX = 6;
 	constexpr int sizeY = 1;
 	constexpr int sizeZ = 2;
 	const array powersTwo = {1, 2, 4, 8, 16, 32, 64};
@@ -442,7 +473,7 @@ void Renderer::ShapesSetUp()
 				                                powersTwo[index]));
 			}
 		}
-	}
+	}*/
 }
 
 void Renderer::Init()
@@ -481,13 +512,13 @@ void Renderer::Init()
 			voxFiles.push_back(entry.path().filename().string());
 		}
 	}
+	MaterialSetUp();
 
 	//Lighting set-up
 	SetUpLights();
 	//shape set-up
 	ShapesSetUp();
 	//Material set-up
-	MaterialSetUp();
 }
 
 void Renderer::Illumination(Ray& ray, float3& incLight)
@@ -623,6 +654,59 @@ int32_t Renderer::FindNearest(Ray& ray)
 			voxelIndex = -1;
 		}
 	}
+	return voxelIndex;
+}
+
+int32_t Renderer::FindNearestPlayer(Ray& ray)
+{
+	int32_t voxelIndex = -2;
+
+
+	const int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
+	//skip player
+	for (int32_t i = 1; i < voxelCount; i++)
+
+	{
+		Ray backupRay = ray;
+
+
+		mat4 invMat = voxelVolumes[i].invMatrix;
+#if 1
+		ray.O4 = TransformPosition_SSEM(ray.O4, invMat);
+
+		ray.D4 = TransformVector_SSEM(ray.D4, invMat);
+
+		//for my machine the fast reciprocal is a bit slower
+
+#if 0
+		__m128 rDSSE = SlowReciprocal(ray.D4);
+#else
+		__m128 rDSSE = FastReciprocal(ray.D4);
+
+#endif
+
+		ray.Dsign4 = ray.ComputeDsign_SSE(ray.D4);
+
+		ray.rD4 = rDSSE;
+
+#else
+		ray.O = TransformPosition(ray.O, invMat);
+
+
+		ray.D = TransformVector(ray.D, invMat);
+
+		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+		ray.Dsign = ray.ComputeDsign(ray.D);
+#endif
+
+		if (voxelVolumes[i].FindNearest(ray))
+		{
+			voxelIndex = i;
+		}
+		backupRay.t = ray.t;
+		backupRay.CopyToPrevRay(ray);
+	}
+
 	return voxelIndex;
 }
 
@@ -794,7 +878,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			float threshold = RandomFloat() * 100 - intensity;
 			if (RandomFloat() * distanceTraveled > threshold)
 			{
-				ray.O = ray.O + ray.D * Rand(ray.t);
+				ray.O = ray.O + ray.D * Rand(ray.t * .45f, ray.t);
 
 				ray.D = RandomDirection();
 				ray.t = 0;
@@ -1155,26 +1239,52 @@ void Renderer::CopyToPrevCamera()
 // -----------------------------------------------------------
 void Renderer::Tick(const float deltaTime)
 {
-	if (camera.HandleInput(deltaTime))
-	{
-		ResetAccumulator();
-	}
-	camera.SetFrustumNormals();
-
-	// pixel loop
 	const Timer t;
 
-	//DOF from Remi
+	if (staticCamera)
+	{
+		if (camera.HandleInput(deltaTime))
+		{
+			ResetAccumulator();
+		}
+		camera.SetFrustumNormals();
 
-	/*Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
-	for (auto& scene : voxelVolumes)
-		scene.FindNearest(focusRay);
+		// pixel loop
 
-	camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);*/
+		//DOF from Remi
+
+		Ray focusRay = camera.GetPrimaryRay(SCRWIDTH / 2, SCRHEIGHT / 2);
+		for (auto& scene : voxelVolumes)
+			scene.FindNearest(focusRay);
+
+		camera.focalDistance = clamp(focusRay.t, -1.0f, 1e4f);
 
 
-	Update();
+		Update();
 
+
+		CopyToPrevCamera();
+	}
+	//reproject
+	else
+	{
+	}
+	//game logic
+	if (player.UpdateInput())
+	{
+		Ray checkOcclusion = player.GetRay();
+		if (FindNearestPlayer(checkOcclusion) > 0 && checkOcclusion.t < player.GetDistance())
+		{
+			//check for normal and rotate
+			//move player
+			player.MovePlayer(voxelVolumes[0], checkOcclusion.IntersectionPoint());
+		}
+		//staticCamera = !IsOccludedPlayerClimbable(checkOcclusion);
+	}
+	else
+	{
+		staticCamera = true;
+	}
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
@@ -1182,9 +1292,6 @@ void Renderer::Tick(const float deltaTime)
 	float fps = 1000.0f / avg, rps = (SCRWIDTH * SCRHEIGHT) / avg;
 	printf("%5.2fms (%.1ffps) - %.1fMrays/s\n", avg, fps, rps / 1000);
 	// handle user input
-
-
-	CopyToPrevCamera();
 }
 
 

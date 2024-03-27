@@ -145,7 +145,8 @@ using namespace Tmpl8;
 #include "Materials/Material.h"
 //bvh
 #include "BVH/BasicBVH.h"
-
+//game
+#include "Game/PlayerCharacter.h"
 // fatal error reporting (with a pretty window)
 #define FATALERROR( fmt, ... ) FatalError( "Error on line %d of %s: " fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__ )
 #define FATALERROR_IF( condition, fmt, ... ) do { if ( ( condition ) ) FATALERROR( fmt, ##__VA_ARGS__ ); } while ( 0 )

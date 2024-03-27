@@ -360,6 +360,16 @@ void Scene::ResetGrid(MaterialType::MatType type)
 	std::fill(grid.begin(), grid.end(), type);
 }
 
+float3 Scene::GetCenter() const
+{
+	return (position + float3{1}) * 0.5f;
+}
+
+float3 Scene::GetCenterNegative() const
+{
+	return (position - float3{1}) * 0.5f;
+}
+
 void Scene::SetTransform(const float3& _rotation)
 {
 	//as Max (230184) explained how I could rotate around a pivot
@@ -389,10 +399,40 @@ void Scene::SetTransform(const float3& _rotation)
 	const mat4 rot = qRot.toMatrix();
 	// Calculate the inverse transformation matrix
 	matrix = translateToPivot * _scale * rot * translateBack;
-	//cube.matrix = mat4::Identity() * translateBack * scale * rot * translateToPivot;
 
 
-	invMatrix = (mat4::Identity() * translateToPivot * rot * _scale * translateBack).Inverted();
+	invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
+}
+
+void Scene::SetTransformNoPivot(const float3& _rotation)
+{
+	// Translate the object to the pivot point (center of the cube)
+	//magic offset to make it look right?
+	const mat4 translateToPivot = mat4::Translate(position - float3{0.25f, 0.0f, 0.5f});
+
+
+	// Scale the object
+	const mat4 _scale = mat4::Scale(this->scale);
+
+	// Rotate the object around the pivot point
+	//const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+	quat qRot;
+	qRot.fromAxisAngle(float3{1, 0, 0}, _rotation.x);
+	// Rotation around the Y-axis
+	quat qRotY;
+	qRotY.fromAxisAngle(float3{0, 1, 0}, _rotation.y);
+	qRot = qRotY * qRot; // Apply rotation around Y-axis
+
+	// Rotation around the Z-axis
+	quat qRotZ;
+	qRotZ.fromAxisAngle(float3{0, 0, 1}, _rotation.z);
+	qRot = qRotZ * qRot; // Apply rotation around Z-axis
+	const mat4 rot = qRot.toMatrix();
+	// Calculate the inverse transformation matrix
+	matrix = translateToPivot * _scale * rot;
+
+
+	invMatrix = (translateToPivot * rot * _scale).Inverted();
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -403,13 +443,10 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
 	//sets the cube
 	grid.resize(GRIDSIZE3);
 	SetCubeBoundaries(position);
-	ResetGrid(MaterialType::NONE);
+	ResetGrid(MaterialType::NON_METAL_BLUE);
 	// initialize the mainScene using Perlin noise, parallel over z
 	//LoadModel("assets/teapot.vox");
-	if (worldSize > 1 && RandomFloat() > 0.3f)
-		GenerateSomeNoise();
-	else
-		GenerateSomeSmoke();
+
 
 	//CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
 }

@@ -104,6 +104,8 @@ namespace Tmpl8
 			float speed = 0.0025f * t;
 			if (IsKeyDown(GLFW_KEY_LEFT_SHIFT))
 				speed /= 2;
+			if (IsKeyDown(GLFW_KEY_LEFT_ALT)) speed = 0.0f;
+
 			ahead = normalize(camTarget - camPos);
 			const float3 tmpUp(0, 1, 0);
 			right = normalize(cross(tmpUp, ahead));

@@ -15,6 +15,7 @@ namespace Tmpl8
 		float3 SpotLightEvaluate(const Ray& ray, const SpotLightData& lightData) const;
 		float3 AreaLightEvaluation(Ray& ray, const SphereAreaLightData& lightData) const;
 		bool IsOccluded(Ray& ray) const;
+		bool IsOccludedPlayerClimbable(Ray& ray) const;
 		bool IsOccludedSpheres(Ray& ray) const;
 		float3 GetAlbedo(size_t indexMaterial) const;
 		float GetEmissive(size_t indexMaterial) const;
@@ -40,6 +41,7 @@ namespace Tmpl8
 		__m256 SlowReciprocal(__m256& dirSSE);
 		void TransformPositionAndDirection_SSE(__m128& oriSSE, __m128& dirSSE, const mat4& invMat, Ray& ray);
 		int32_t FindNearest(Ray& ray);
+		int32_t FindNearestPlayer(Ray& ray);
 		float3 Trace(Ray& ray, int depth);
 		static float SchlickReflectance(float cosine, float indexOfRefraction);
 		float3 Absorption(const float3& color, float intensity, float distanceTraveled);
@@ -115,7 +117,7 @@ namespace Tmpl8
 		std::vector<uint32_t> vertIterator;
 		// data members
 		int2 mousePos;
-		int32_t maxBounces = 5;
+		int32_t maxBounces = 10;
 		float weight = .10f;
 		bool staticCamera = true;
 		float4* accumulator;
@@ -150,8 +152,10 @@ namespace Tmpl8
 		std::vector<std::string> voxFiles;
 		std::vector<Sphere> spheres;
 		std::vector<Triangle> triangles;
+		//the first one is the player
 		std::vector<Scene> voxelVolumes;
 		bool activateSky = true;
+
 		int matTypeSphere = MaterialType::SMOKE_LOW_DENSITY;
 		//BVH
 		BasicBVH bvh;
@@ -161,5 +165,9 @@ namespace Tmpl8
 		float HDRLightContribution = 5.9f;
 		int skyWidth, skyHeight;
 		float* skyPixels;
+
+
+		//player
+		PlayerCharacter player;
 	};
 } // namespace Tmpl8

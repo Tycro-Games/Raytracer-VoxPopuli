@@ -7,89 +7,89 @@
 #pragma warning(pop)
 void Ray::CopyToPrevRay(Ray& ray)
 {
-	ray.O = O;
-	ray.D = D;
-	ray.rD = rD;
-	ray.Dsign = Dsign;
+  ray.O = O;
+  ray.D = D;
+  ray.rD = rD;
+  ray.Dsign = Dsign;
 }
 
 Ray::Ray(const Ray& ray)
 {
-	O = ray.O;
-	D = ray.D;
-	rD = ray.rD;
-	Dsign = ray.Dsign;
-	t = ray.t;
-	//not needed
-	/*rayNormal = ray.rayNormal;
-	indexMaterial = ray.indexMaterial;
-	isInsideGlass = ray.isInsideGlass;*/
+  O = ray.O;
+  D = ray.D;
+  rD = ray.rD;
+  Dsign = ray.Dsign;
+  t = ray.t;
+  //not needed
+  /*rayNormal = ray.rayNormal;
+  indexMaterial = ray.indexMaterial;
+  isInsideGlass = ray.isInsideGlass;*/
 }
 
 Ray::Ray(const float3& origin, const float3& direction, const float3& _rD, const
          float3& _Dsign, const float rayLength, const int) : O(origin), D(direction),
                                                              rD(_rD), Dsign(_Dsign), t(rayLength)
 {
-	//not needed
-	/*rayNormal = ray.rayNormal;
-	indexMaterial = ray.indexMaterial;
-	isInsideGlass = ray.isInsideGlass;*/
+  //not needed
+  /*rayNormal = ray.rayNormal;
+  indexMaterial = ray.indexMaterial;
+  isInsideGlass = ray.isInsideGlass;*/
 }
 
 Ray::Ray(const __m128& origin, const __m128& direction, const __m128& _rD, const
          __m128& _Dsign, const float rayLength, const int) : O4(origin), D4(direction),
                                                              rD4(_rD), Dsign4(_Dsign), t(rayLength)
 {
-	//not needed
-	/*rayNormal = ray.rayNormal;
-	indexMaterial = ray.indexMaterial;
-	isInsideGlass = ray.isInsideGlass;*/
+  //not needed
+  /*rayNormal = ray.rayNormal;
+  indexMaterial = ray.indexMaterial;
+  isInsideGlass = ray.isInsideGlass;*/
 }
 
 float3 Ray::ComputeDsign(const float3& _D)
 {
-	const uint x_sign = (*(uint*)&_D.x >> 31);
-	const uint y_sign = (*(uint*)&_D.y >> 31);
-	const uint z_sign = (*(uint*)&_D.z >> 31);
+  const uint x_sign = (*(uint*)&_D.x >> 31);
+  const uint y_sign = (*(uint*)&_D.y >> 31);
+  const uint z_sign = (*(uint*)&_D.z >> 31);
 
-	return (float3(static_cast<float>(x_sign) * 2 - 1, static_cast<float>(y_sign) * 2 - 1,
-	               static_cast<float>(z_sign) * 2 - 1) + 1) * 0.5f;
+  return (float3(static_cast<float>(x_sign) * 2 - 1, static_cast<float>(y_sign) * 2 - 1,
+                 static_cast<float>(z_sign) * 2 - 1) + 1) * 0.5f;
 }
 
 __m128 Ray::ComputeDsign_SSE(const __m128& m)
 {
-	__m128i dirSSE = _mm_castps_si128(m);
-	dirSSE = _mm_srli_epi32(dirSSE, 31);
-	const __m128 signs = _mm_cvtepi32_ps(dirSSE);
-	//multiply by two substract 1
-	__m128 result = _mm_sub_ps(_mm_mul_ps(signs, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-	//add one and multiply by 0.5
-	const __m128 one = _mm_set1_ps(1.0f);
-	const __m128 point5 = _mm_set1_ps(.5f);
-	result = _mm_add_ps(result, one);
+  __m128i dirSSE = _mm_castps_si128(m);
+  dirSSE = _mm_srli_epi32(dirSSE, 31);
+  const __m128 signs = _mm_cvtepi32_ps(dirSSE);
+  //multiply by two substract 1
+  __m128 result = _mm_sub_ps(_mm_mul_ps(signs, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+  //add one and multiply by 0.5
+  const __m128 one = _mm_set1_ps(1.0f);
+  const __m128 point5 = _mm_set1_ps(.5f);
+  result = _mm_add_ps(result, one);
 
-	result = _mm_mul_ps(result, point5);
-	////Max told me to do this, because it is just easier
-	//__m128i signs = _mm_srli_epi32((__m128i&)m, 31);
+  result = _mm_mul_ps(result, point5);
+  ////Max told me to do this, because it is just easier
+  //__m128i signs = _mm_srli_epi32((__m128i&)m, 31);
 
 
-	//return {
-	//	static_cast<float>(signs.m128i_u32[0]), static_cast<float>(signs.m128i_u32[1]),
-	//	static_cast<float>(signs.m128i_u32[2])
-	return result;
+  //return {
+  //	static_cast<float>(signs.m128i_u32[0]), static_cast<float>(signs.m128i_u32[1]),
+  //	static_cast<float>(signs.m128i_u32[2])
+  return result;
 }
 
 
 Ray::Ray(const float3 origin, const float3 direction, const float rayLength, const int) : O(origin), t(rayLength)
 {
-	D = normalize(direction);
-	// calculate reciprocal ray direction for triangles and AABBs
-	// TODO: prevent NaNs - or don't
-	rD = float3(1 / D.x, 1 / D.y, 1 / D.z);
-	//if (std::isnan(rD.x) || isnan(rD.y) || isnan(rD.z))
-	//	std::cout << "NaN in rD.x" << std::endl;
-	//faster than reinterpret cast by about 1%
-	Dsign = ComputeDsign(D);
+  D = normalize(direction);
+  // calculate reciprocal ray direction for triangles and AABBs
+  // TODO: prevent NaNs - or don't
+  rD = float3(1 / D.x, 1 / D.y, 1 / D.z);
+  //if (std::isnan(rD.x) || isnan(rD.y) || isnan(rD.z))
+  //	std::cout << "NaN in rD.x" << std::endl;
+  //faster than reinterpret cast by about 1%
+  Dsign = ComputeDsign(D);
 }
 
 //Sven does it so, but it is still broken
@@ -120,312 +120,312 @@ Ray::Ray(const float3 origin, const float3 direction, const float rayLength, con
 //added comments with chatGPT
 float3 Ray::GetNormalVoxel(const uint32_t worldSize, const mat4& matrix) const
 {
-	// Calculate the intersection point
-	const float3 I1 = IntersectionPoint() * static_cast<float>(worldSize);
+  // Calculate the intersection point
+  const float3 I1 = IntersectionPoint() * static_cast<float>(worldSize);
 
-	// Calculate fractional part of I1
-	const float3 fG = fracf(I1);
+  // Calculate fractional part of I1
+  const float3 fG = fracf(I1);
 
-	// Calculate distances to boundaries                                              
-	const float3 d = min3(fG, 1.0f - fG);
-	const float mind = min(min(d.x, d.y), d.z);
+  // Calculate distances to boundaries                                              
+  const float3 d = min3(fG, 1.0f - fG);
+  const float mind = min(min(d.x, d.y), d.z);
 
-	// Calculate signs
-	const float3 sign = Dsign * 2 - 1;
+  // Calculate signs
+  const float3 sign = Dsign * 2 - 1;
 
-	// Determine the normal based on the minimum distance
-	float3 normal = float3(mind == d.x ? sign.x : 0.0f, mind == d.y ? sign.y : 0.0f, mind == d.z ? sign.z : 0.0f);
-
-
-	// Transform the normal from object space to world space
-	normal = normalize(TransformVector(normal, matrix));
+  // Determine the normal based on the minimum distance
+  float3 normal = float3(mind == d.x ? sign.x : 0.0f, mind == d.y ? sign.y : 0.0f, mind == d.z ? sign.z : 0.0f);
 
 
-	return normal;
-	// TODO:
-	// - *only* in case the profiler flags this as a bottleneck:
-	// - This function might benefit from SIMD.
+  // Transform the normal from object space to world space
+  normal = normalize(TransformVector(normal, matrix));
+
+
+  return normal;
+  // TODO:
+  // - *only* in case the profiler flags this as a bottleneck:
+  // - This function might benefit from SIMD.
 }
 
 float3 Ray::UintToFloat3(uint col) const
 {
-	const uint8_t red = (col >> 16) & 0xFF; // Red component
-	const uint8_t green = (col >> 8) & 0xFF; // Green component
-	const uint8_t blue = col & 0xFF; // Blue component
+  const uint8_t red = (col >> 16) & 0xFF; // Red component
+  const uint8_t green = (col >> 8) & 0xFF; // Green component
+  const uint8_t blue = col & 0xFF; // Blue component
 
-	// Normalize color components to the range [0, 1]
-	const float normRed = static_cast<float>(red) / 255.0f;
-	const float normGreen = static_cast<float>(green) / 255.0f;
-	const float normBlue = static_cast<float>(blue) / 255.0f;
+  // Normalize color components to the range [0, 1]
+  const float normRed = static_cast<float>(red) / 255.0f;
+  const float normGreen = static_cast<float>(green) / 255.0f;
+  const float normBlue = static_cast<float>(blue) / 255.0f;
 
-	// Return the color as a float3
-	return float3(normRed, normGreen, normBlue);
+  // Return the color as a float3
+  return float3(normRed, normGreen, normBlue);
 }
 
 
 float Cube::Intersect(const Ray& ray) const
 {
-	//rewritten by chatgpt
-	// Determine the signs of ray direction components
-	const int signx = ray.D.x < 0;
-	const int signy = ray.D.y < 0;
-	const int signz = ray.D.z < 0;
+  //rewritten by chatgpt
+  // Determine the signs of ray direction components
+  const int signx = ray.D.x < 0;
+  const int signy = ray.D.y < 0;
+  const int signz = ray.D.z < 0;
 
-	// Calculate t-values for intersection with each face of the cube
-	float tmin_x = (b[signx].x - ray.O.x) * ray.rD.x;
-	float tmax_x = (b[1 - signx].x - ray.O.x) * ray.rD.x;
+  // Calculate t-values for intersection with each face of the cube
+  float tmin_x = (b[signx].x - ray.O.x) * ray.rD.x;
+  float tmax_x = (b[1 - signx].x - ray.O.x) * ray.rD.x;
 
-	const float tmin_y = (b[signy].y - ray.O.y) * ray.rD.y;
-	const float tmax_y = (b[1 - signy].y - ray.O.y) * ray.rD.y;
+  const float tmin_y = (b[signy].y - ray.O.y) * ray.rD.y;
+  const float tmax_y = (b[1 - signy].y - ray.O.y) * ray.rD.y;
 
-	// Check for intersection with Y faces
-	if (tmin_x > tmax_y || tmin_y > tmax_x)
-		return 1e34f; // No intersection
+  // Check for intersection with Y faces
+  if (tmin_x > tmax_y || tmin_y > tmax_x)
+    return 1e34f; // No intersection
 
-	// Update tmin and tmax
-	tmin_x = std::max(tmin_x, tmin_y);
-	tmax_x = std::min(tmax_x, tmax_y);
+  // Update tmin and tmax
+  tmin_x = std::max(tmin_x, tmin_y);
+  tmax_x = std::min(tmax_x, tmax_y);
 
-	const float tmin_z = (b[signz].z - ray.O.z) * ray.rD.z;
-	const float tmax_z = (b[1 - signz].z - ray.O.z) * ray.rD.z;
+  const float tmin_z = (b[signz].z - ray.O.z) * ray.rD.z;
+  const float tmax_z = (b[1 - signz].z - ray.O.z) * ray.rD.z;
 
-	// Check for intersection with Z faces
-	if (tmin_x > tmax_z || tmin_z > tmax_x)
-		return 1e34f; // No intersection
+  // Check for intersection with Z faces
+  if (tmin_x > tmax_z || tmin_z > tmax_x)
+    return 1e34f; // No intersection
 
-	// Final intersection
-	tmin_x = std::max(tmin_x, tmin_z);
-	if (tmin_x > 0)
-		return tmin_x;
+  // Final intersection
+  tmin_x = std::max(tmin_x, tmin_z);
+  if (tmin_x > 0)
+    return tmin_x;
 
-	return 1e34f; // No intersection
+  return 1e34f; // No intersection
 }
 
 
 bool Cube::Contains(const float3& pos) const
 {
-	// test if pos is inside the cube
-	return pos.x >= b[0].x && pos.y >= b[0].y && pos.z >= b[0].z &&
-		pos.x <= b[1].x && pos.y <= b[1].y && pos.z <= b[1].z;
+  // test if pos is inside the cube
+  return pos.x >= b[0].x && pos.y >= b[0].y && pos.z >= b[0].z &&
+    pos.x <= b[1].x && pos.y <= b[1].y && pos.z <= b[1].z;
 }
 
 
 void Scene::SetCubeBoundaries(const float3& _position)
 {
-	cube.b[0] = _position;
-	cube.b[1] = _position + float3{1};
+  cube.b[0] = _position;
+  cube.b[1] = _position + float3{1};
 }
 
 
 // Function to set scaling of the voxel cube
 void Scene::SetScale(const float3& scl)
 {
-	scale = scl; // Store the scaling factors
+  scale = scl; // Store the scaling factors
 }
 
 void Scene::GenerateSomeNoise(float frequency = 0.03f)
 {
-	ResetGrid();
-	//from https://github.com/Auburn/FastNoise2/wiki/3:-Getting-started-using-FastNoise2
+  ResetGrid();
+  //from https://github.com/Auburn/FastNoise2/wiki/3:-Getting-started-using-FastNoise2
 
-	const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
-
-
-	// Create an array of floats to store the noise output in
-	std::vector<float> noiseOutput(GRIDSIZE3);
-	fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
+  const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
 
 
-	for (uint32_t z = 0; z < WORLDSIZE; z++)
-	{
-		for (uint32_t y = 0; y < WORLDSIZE; y++)
-		{
-			for (uint32_t x = 0; x < WORLDSIZE; x++)
-			{
-				const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
-				// Sample noise from pre-generated vector
-				MaterialType::MatType color = MaterialType::NONE;
+  // Create an array of floats to store the noise output in
+  std::vector<float> noiseOutput(GRIDSIZE3);
+  fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
 
 
-				if (n <= 0.04f)
-				{
-					color = MaterialType::NONE;
-				}
-				else if (n < 0.08)
-				{
-					color = static_cast<MaterialType::MatType>(Rand(static_cast<float>(MaterialType::GLASS)));
-				}
-				else if (n < 0.2)
-				{
-					color = MaterialType::NON_METAL_RED;
-				}
-				else if (n < 0.17f)
-				{
-					color = MaterialType::NON_METAL_WHITE;
-				}
-				else if (n < 0.3)
-				{
-					color = MaterialType::EMISSIVE;
-				}
-				else if (n < 0.5f)
-					color = MaterialType::METAL_HIGH;
-				else if (n < 0.7f)
-					color = MaterialType::METAL_MID;
-				else if (n < 0.9f)
-					color = MaterialType::METAL_LOW;
+  for (uint32_t z = 0; z < WORLDSIZE; z++)
+  {
+    for (uint32_t y = 0; y < WORLDSIZE; y++)
+    {
+      for (uint32_t x = 0; x < WORLDSIZE; x++)
+      {
+        const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+        // Sample noise from pre-generated vector
+        MaterialType::MatType color = MaterialType::NONE;
 
 
-				Set(x, y, z, color); // Assuming Set function is defined elsewhere
-			}
-		}
-	}
+        if (n <= 0.04f)
+        {
+          color = MaterialType::NONE;
+        }
+        else if (n < 0.08)
+        {
+          color = static_cast<MaterialType::MatType>(Rand(static_cast<float>(MaterialType::GLASS)));
+        }
+        else if (n < 0.2)
+        {
+          color = MaterialType::NON_METAL_RED;
+        }
+        else if (n < 0.17f)
+        {
+          color = MaterialType::NON_METAL_WHITE;
+        }
+        else if (n < 0.3)
+        {
+          color = MaterialType::EMISSIVE;
+        }
+        else if (n < 0.5f)
+          color = MaterialType::METAL_HIGH;
+        else if (n < 0.7f)
+          color = MaterialType::METAL_MID;
+        else if (n < 0.9f)
+          color = MaterialType::METAL_LOW;
+
+
+        Set(x, y, z, color); // Assuming Set function is defined elsewhere
+      }
+    }
+  }
 }
 
 void Scene::GenerateSomeSmoke(float frequency = 0.001f)
 {
-	ResetGrid();
-	//from https://github.com/Auburn/FastNoise2/wiki/3:-Getting-started-using-FastNoise2
+  ResetGrid();
+  //from https://github.com/Auburn/FastNoise2/wiki/3:-Getting-started-using-FastNoise2
 
-	const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
-	const auto fnFractal = FastNoise::New<FastNoise::FractalFBm>();
-
-
-	// Create an array of floats to store the noise output in
-	std::vector<float> noiseOutput(GRIDSIZE3);
-	fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
+  const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
+  const auto fnFractal = FastNoise::New<FastNoise::FractalFBm>();
 
 
-	for (uint32_t z = 0; z < WORLDSIZE; z++)
-	{
-		for (uint32_t y = 0; y < WORLDSIZE; y++)
-		{
-			for (uint32_t x = 0; x < WORLDSIZE; x++)
-			{
-				float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
-				MaterialType::MatType color = MaterialType::NONE;
-				const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
-
-				const float3 center{
-					static_cast<float>(WORLDSIZE) / 2.0f, static_cast<float>(WORLDSIZE) / 2.0f,
-					static_cast<float>(WORLDSIZE) / 2.0f
-				};
-
-				//Elipse like shape
-				float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
-				                                        static_cast<float>(WORLDSIZE) / 2.0f);
-				float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
-				                                        static_cast<float>(WORLDSIZE) / 2.0f);
-				const float3 dimensions{
-					randomX, WORLDSIZE / 3.0f,
-					randomZ
-				};
-
-				const float3 distance = (point - center) / (dimensions);
-				const float distanceSquared = dot(distance, distance);
-				//Denser smoke towards the center
-				if (n - distanceSquared < 0.04f || distanceSquared > 1.5f)
-				{
-					color = MaterialType::NONE;
-				}
-				else if (n < 0.3f)
-				{
-					color = MaterialType::SMOKE_HIGH_DENSITY;
-				}
-				else if (n < 0.4f)
-				{
-					color = MaterialType::SMOKE_MID2_DENSITY;
-				}
-				else if (n < 0.6f)
-				{
-					color = MaterialType::SMOKE_MID_DENSITY;
-				}
-				else if (n < 0.7f)
-				{
-					color = MaterialType::SMOKE_LOW2_DENSITY;
-				}
-				else if (n < 1.0f)
-				{
-					color = MaterialType::SMOKE_LOW_DENSITY;
-				}
+  // Create an array of floats to store the noise output in
+  std::vector<float> noiseOutput(GRIDSIZE3);
+  fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
 
 
-				Set(x, y, z, color); // Assuming Set function is defined elsewhere
-			}
-		}
-	}
+  for (uint32_t z = 0; z < WORLDSIZE; z++)
+  {
+    for (uint32_t y = 0; y < WORLDSIZE; y++)
+    {
+      for (uint32_t x = 0; x < WORLDSIZE; x++)
+      {
+        float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+        MaterialType::MatType color = MaterialType::NONE;
+        const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
+
+        const float3 center{
+          static_cast<float>(WORLDSIZE) / 2.0f, static_cast<float>(WORLDSIZE) / 2.0f,
+          static_cast<float>(WORLDSIZE) / 2.0f
+        };
+
+        //Elipse like shape
+        float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
+                                                static_cast<float>(WORLDSIZE) / 2.0f);
+        float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
+                                                static_cast<float>(WORLDSIZE) / 2.0f);
+        const float3 dimensions{
+          randomX, WORLDSIZE / 3.0f,
+          randomZ
+        };
+
+        const float3 distance = (point - center) / (dimensions);
+        const float distanceSquared = dot(distance, distance);
+        //Denser smoke towards the center
+        if (n - distanceSquared < 0.04f || distanceSquared > 1.5f)
+        {
+          color = MaterialType::NONE;
+        }
+        else if (n < 0.3f)
+        {
+          color = MaterialType::SMOKE_HIGH_DENSITY;
+        }
+        else if (n < 0.4f)
+        {
+          color = MaterialType::SMOKE_MID2_DENSITY;
+        }
+        else if (n < 0.6f)
+        {
+          color = MaterialType::SMOKE_MID_DENSITY;
+        }
+        else if (n < 0.7f)
+        {
+          color = MaterialType::SMOKE_LOW2_DENSITY;
+        }
+        else if (n < 1.0f)
+        {
+          color = MaterialType::SMOKE_LOW_DENSITY;
+        }
+
+
+        Set(x, y, z, color); // Assuming Set function is defined elsewhere
+      }
+    }
+  }
 }
 
 void Scene::ResetGrid(MaterialType::MatType type)
 {
-	std::fill(grid.begin(), grid.end(), type);
+  std::fill(grid.begin(), grid.end(), type);
 }
 
 float3 Scene::GetCenter() const
 {
-	return (position + float3{1}) * 0.5f;
+  return (position + float3{1}) * 0.5f;
 }
 
 float3 Scene::GetCenterNegative() const
 {
-	return (position - float3{1}) * 0.5f;
+  return (position - float3{1}) * 0.5f;
 }
 
 void Scene::SetTransform(const float3& _rotation)
 {
-	//as Max (230184) explained how I could rotate around a pivot
-	const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
-	// Translate the object to the pivot point (center of the cube)
-	const mat4 translateToPivot = mat4::Translate(centerCube + position);
+  //as Max (230184) explained how I could rotate around a pivot
+  const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
+  // Translate the object to the pivot point (center of the cube)
+  const mat4 translateToPivot = mat4::Translate(centerCube + position);
 
-	// Translate back to the original position after rotation
-	const mat4 translateBack = mat4::Translate(-centerCube);
+  // Translate back to the original position after rotation
+  const mat4 translateBack = mat4::Translate(-centerCube);
 
-	// Scale the object
-	const mat4 _scale = mat4::Scale(this->scale);
+  // Scale the object
+  const mat4 _scale = mat4::Scale(this->scale);
 
-	// Rotate the object around the pivot point
-	//const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
-	quat qRot;
-	qRot.fromAxisAngle(float3{1, 0, 0}, _rotation.x);
-	// Rotation around the Y-axis
-	quat qRotY;
-	qRotY.fromAxisAngle(float3{0, 1, 0}, _rotation.y);
-	qRot = qRotY * qRot; // Apply rotation around Y-axis
+  // Rotate the object around the pivot point
+  //const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+  quat qRot;
+  qRot.fromAxisAngle(float3{1, 0, 0}, _rotation.x);
+  // Rotation around the Y-axis
+  quat qRotY;
+  qRotY.fromAxisAngle(float3{0, 1, 0}, _rotation.y);
+  qRot = qRotY * qRot; // Apply rotation around Y-axis
 
-	// Rotation around the Z-axis
-	quat qRotZ;
-	qRotZ.fromAxisAngle(float3{0, 0, 1}, _rotation.z);
-	qRot = qRotZ * qRot; // Apply rotation around Z-axis
-	const mat4 rot = qRot.toMatrix();
-	// Calculate the inverse transformation matrix
-	matrix = translateToPivot * _scale * rot * translateBack;
+  // Rotation around the Z-axis
+  quat qRotZ;
+  qRotZ.fromAxisAngle(float3{0, 0, 1}, _rotation.z);
+  qRot = qRotZ * qRot; // Apply rotation around Z-axis
+  const mat4 rot = qRot.toMatrix();
+  // Calculate the inverse transformation matrix
+  matrix = translateToPivot * _scale * rot * translateBack;
 
 
-	invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
+  invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
 }
 
 void Scene::SetTransformPlayer(const mat4& _rotation)
 {
-	//as Max (230184) explained how I could rotate around a pivot
-	const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
-	// Translate the object to the pivot point (center of the cube)
-	const mat4 translateToPivot = mat4::Translate(centerCube + position);
+  //as Max (230184) explained how I could rotate around a pivot
+  const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
+  // Translate the object to the pivot point (center of the cube)
+  const mat4 translateToPivot = mat4::Translate(centerCube + position);
 
-	// Translate back to the original position after rotation
-	const mat4 translateBack = mat4::Translate(-centerCube);
+  // Translate back to the original position after rotation
+  const mat4 translateBack = mat4::Translate(-centerCube);
 
-	// Scale the object
-	const mat4 _scale = mat4::Scale(this->scale);
+  // Scale the object
+  const mat4 _scale = mat4::Scale(this->scale);
 
-	// Rotate the object around the pivot point
-	//const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
+  // Rotate the object around the pivot point
+  //const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
 
-	const mat4 rot = _rotation;
-	// Calculate the inverse transformation matrix
-	matrix = translateToPivot * _scale * rot * translateBack;
+  const mat4 rot = _rotation;
+  // Calculate the inverse transformation matrix
+  matrix = translateToPivot * _scale * rot * translateBack;
 
 
-	invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
+  invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -433,401 +433,401 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
                                                                  GRIDSIZE3(worldSize * worldSize * worldSize)
 
 {
-	//sets the cube
-	grid.resize(GRIDSIZE3);
-	SetCubeBoundaries(position);
-	ResetGrid(MaterialType::NON_METAL_BLUE);
-	// initialize the mainScene using Perlin noise, parallel over z
-	//LoadModel("assets/teapot.vox");
+  //sets the cube
+  grid.resize(GRIDSIZE3);
+  SetCubeBoundaries(position);
+  ResetGrid(MaterialType::NON_METAL_BLUE);
+  // initialize the mainScene using Perlin noise, parallel over z
+  //LoadModel("assets/teapot.vox");
 
 
-	//CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
+  //CreateEmmisiveSphere(MaterialType::METAL_HIGH, GRIDSIZE / 2.0f);
 }
 
 
 // a helper function to load a magica voxel scene given a filename from https://github.com/jpaver/opengametools/blob/master/demo/demo_vox.cpp
 void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_read_flags)
 {
-	ResetGrid();
-	// open the file
+  ResetGrid();
+  // open the file
 #if defined(_MSC_VER) && _MSC_VER >= 1400
-	FILE* fp;
-	if (0 != fopen_s(&fp, filename, "rb"))
-		fp = 0;
+  FILE* fp;
+  if (0 != fopen_s(&fp, filename, "rb"))
+    fp = 0;
 #else
 	FILE* fp = fopen(filename, "rb");
 #endif
-	if (!fp)
-		return;
+  if (!fp)
+    return;
 
-	// get the buffer size which matches the size of the file
-	fseek(fp, 0, SEEK_END);
-	const uint32_t buffer_size = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
+  // get the buffer size which matches the size of the file
+  fseek(fp, 0, SEEK_END);
+  const uint32_t buffer_size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
 
-	// load the file into a memory buffer
-	uint8_t* buffer = new uint8_t[buffer_size];
-	fread(buffer, buffer_size, 1, fp);
-	fclose(fp);
+  // load the file into a memory buffer
+  uint8_t* buffer = new uint8_t[buffer_size];
+  fread(buffer, buffer_size, 1, fp);
+  fclose(fp);
 
-	// construct the scene from the buffer
-	const auto scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->models[0];
-	const auto scenePallete = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->palette;
-	//created using chatgpt promts
-	// Assign colors based on the loaded scene
-	// Define scaling factors for each dimension
-	if (scene->size_x > GRIDSIZE)
-	{
-		// Modify scaleModel variables based on the comparison
-		scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
-		scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
-		scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
-	}
-	//do stuff
-	for (uint32_t z = 0; z < scene->size_z; ++z)
-	{
-		for (uint32_t y = 0; y < scene->size_y; ++y)
-		{
-			for (uint32_t x = 0; x < scene->size_x; ++x)
-			{
-				// Calculate the scaled position
-				// Calculate the scaled position
-				const int scaledX = static_cast<int>((static_cast<float>(x) *
-					scaleModel.x));
-				const int scaledY = static_cast<int>(static_cast<float>(z) *
-					scaleModel.y);
-				const int scaledZ = static_cast<int>(static_cast<float>(y) *
-					scaleModel.z);
+  // construct the scene from the buffer
+  const auto scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->models[0];
+  const auto scenePallete = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->palette;
+  //created using chatgpt promts
+  // Assign colors based on the loaded scene
+  // Define scaling factors for each dimension
+  if (scene->size_x > GRIDSIZE)
+  {
+    // Modify scaleModel variables based on the comparison
+    scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
+    scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
+    scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+  }
+  //do stuff
+  for (uint32_t z = 0; z < scene->size_z; ++z)
+  {
+    for (uint32_t y = 0; y < scene->size_y; ++y)
+    {
+      for (uint32_t x = 0; x < scene->size_x; ++x)
+      {
+        // Calculate the scaled position
+        // Calculate the scaled position
+        const int scaledX = static_cast<int>((static_cast<float>(x) *
+          scaleModel.x));
+        const int scaledY = static_cast<int>(static_cast<float>(z) *
+          scaleModel.y);
+        const int scaledZ = static_cast<int>(static_cast<float>(y) *
+          scaleModel.z);
 
 
-				// Assume each voxel has a color index, and map that to MatType
-				MaterialType::MatType materialIndex = MaterialType::NONE;
-				// Calculate index into voxel_data based on the current position
-				const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
-				// Access color index from voxel_data
-				uint8_t voxelColorIndex = scene->voxel_data[index];
-				const auto col = scenePallete.color[voxelColorIndex];
+        // Assume each voxel has a color index, and map that to MatType
+        MaterialType::MatType materialIndex = MaterialType::NONE;
+        // Calculate index into voxel_data based on the current position
+        const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
+        // Access color index from voxel_data
+        uint8_t voxelColorIndex = scene->voxel_data[index];
+        const auto col = scenePallete.color[voxelColorIndex];
 
-				if (voxelColorIndex == 0)
-				{
-					continue;
-				}
+        if (voxelColorIndex == 0)
+        {
+          continue;
+        }
 
-				materialIndex = static_cast<MaterialType::MatType>(voxelColorIndex);
-				renderer.materials[materialIndex]->albedo = (float3(static_cast<float>(col.r) / 255.0f,
-				                                                    static_cast<float>(col.g) / 255.0f,
-				                                                    static_cast<float>(col.b) / 255.0f));
-				renderer.materials[materialIndex]->roughness = 1.0f;
-				// Set the color at position (x, y, z)
-				Set(scaledX, scaledY, scaledZ, materialIndex);
-			}
-		}
-	}
+        materialIndex = static_cast<MaterialType::MatType>(voxelColorIndex);
+        renderer.materials[materialIndex]->albedo = (float3(static_cast<float>(col.r) / 255.0f,
+                                                            static_cast<float>(col.g) / 255.0f,
+                                                            static_cast<float>(col.b) / 255.0f));
+        renderer.materials[materialIndex]->roughness = 1.0f;
+        // Set the color at position (x, y, z)
+        Set(scaledX, scaledY, scaledZ, materialIndex);
+      }
+    }
+  }
 
-	// Cleanup
-	delete[] buffer;
+  // Cleanup
+  delete[] buffer;
 }
 
 void Scene::CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere)
 {
-	//ResetGrid();
-	//based on Lynn's implementation
-	// When looping over (x, y, z) during scene creation
+  //ResetGrid();
+  //based on Lynn's implementation
+  // When looping over (x, y, z) during scene creation
 
-	const float worldCenter{(static_cast<float>(WORLDSIZE) / 2.0f)};
+  const float worldCenter{(static_cast<float>(WORLDSIZE) / 2.0f)};
 
-	for (uint32_t z = 0; z < WORLDSIZE; ++z)
-	{
-		for (uint32_t y = 0; y < WORLDSIZE; ++y)
-		{
-			for (uint32_t x = 0; x < WORLDSIZE; ++x)
-			{
-				const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
-				const float distanceSquared{length(worldCenter - point)}; // Distance from the center of the world
+  for (uint32_t z = 0; z < WORLDSIZE; ++z)
+  {
+    for (uint32_t y = 0; y < WORLDSIZE; ++y)
+    {
+      for (uint32_t x = 0; x < WORLDSIZE; ++x)
+      {
+        const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
+        const float distanceSquared{length(worldCenter - point)}; // Distance from the center of the world
 
 
-				if (distanceSquared < radiusEmissiveSphere)
-				{
-					// The voxel exists
-					Set(x, y, z, mat);
-				}
-			}
-		}
-	}
+        if (distanceSquared < radiusEmissiveSphere)
+        {
+          // The voxel exists
+          Set(x, y, z, mat);
+        }
+      }
+    }
+  }
 }
 
 void Scene::Set(const uint x, const uint y, const uint z, const MaterialType::MatType v)
 {
-	grid[GetVoxel(x, y, z)] = v;
+  grid[GetVoxel(x, y, z)] = v;
 }
 
 //This changes to any position now
 bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
 {
-	// if ray is not inside the world: advance until it is
-	state.t = 0;
-	if (!cube.Contains(ray.O))
-	{
-		state.t = cube.Intersect(ray);
-		if (state.t > 1e33f)
-		{
-			return false;
-		}
-		// ray misses voxel data entirely
-	}
-	//expressed in world space
-	const float3 voxelMinBounds = cube.b[0];
-	const float3 voxelMaxBounds = cube.b[1] - cube.b[0];
-	const auto gridsizeFloat = static_cast<float>(GRIDSIZE);
-	const float cellSize = 1.0f / gridsizeFloat;
-	state.step = make_int3(1 - ray.Dsign * 2);
-	//based on our cube position
-	const float3 posInGrid = gridsizeFloat * ((ray.O - voxelMinBounds) + (state.t + 0.00005f) * ray.D) /
-		voxelMaxBounds;
-	const float3 gridPlanes = (ceilf(posInGrid) - ray.Dsign) * cellSize;
-	const int3 P = clamp(make_int3(posInGrid), 0, GRIDSIZE - 1);
-	state.X = P.x, state.Y = P.y, state.Z = P.z;
-	state.tdelta = cellSize * float3(state.step) * ray.rD;
-	state.tmax = ((gridPlanes * voxelMaxBounds) - (ray.O - voxelMinBounds)) * ray.rD;
+  // if ray is not inside the world: advance until it is
+  state.t = 0;
+  if (!cube.Contains(ray.O))
+  {
+    state.t = cube.Intersect(ray);
+    if (state.t > 1e33f)
+    {
+      return false;
+    }
+    // ray misses voxel data entirely
+  }
+  //expressed in world space
+  const float3 voxelMinBounds = cube.b[0];
+  const float3 voxelMaxBounds = cube.b[1] - cube.b[0];
+  const auto gridsizeFloat = static_cast<float>(GRIDSIZE);
+  const float cellSize = 1.0f / gridsizeFloat;
+  state.step = make_int3(1 - ray.Dsign * 2);
+  //based on our cube position
+  const float3 posInGrid = gridsizeFloat * ((ray.O - voxelMinBounds) + (state.t + 0.00005f) * ray.D) /
+    voxelMaxBounds;
+  const float3 gridPlanes = (ceilf(posInGrid) - ray.Dsign) * cellSize;
+  const int3 P = clamp(make_int3(posInGrid), 0, GRIDSIZE - 1);
+  state.X = P.x, state.Y = P.y, state.Z = P.z;
+  state.tdelta = cellSize * float3(state.step) * ray.rD;
+  state.tmax = ((gridPlanes * voxelMaxBounds) - (ray.O - voxelMinBounds)) * ray.rD;
 
 
-	return true;
+  return true;
 }
 
 bool Scene::FindNearest(Ray& ray) const
 {
-	// setup Amanatides & Woo grid traversal
-	DDAState s;
+  // setup Amanatides & Woo grid traversal
+  DDAState s;
 
-	if (!Setup3DDDA(ray, s))
-	{
-		return false;
-	}
-	// start stepping
-	while (s.t < ray.t)
-	{
-		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != MaterialType::NONE && s.t < ray.t)
-		{
-			ray.t = s.t;
+  if (!Setup3DDDA(ray, s))
+  {
+    return false;
+  }
+  // start stepping
+  while (s.t < ray.t)
+  {
+    const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+    if (cell != MaterialType::NONE && s.t < ray.t)
+    {
+      ray.t = s.t;
 
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
 
-			ray.indexMaterial = cell;
-			return true;
-		}
-		if (s.tmax.x < s.tmax.y)
-		{
-			if (s.tmax.x < s.tmax.z)
-			{
-				s.t = s.tmax.x, s.X += s.step.x;
-				if (s.X >= GRIDSIZE) break;
-				s.tmax.x += s.tdelta.x;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-		else
-		{
-			if (s.tmax.y < s.tmax.z)
-			{
-				s.t = s.tmax.y, s.Y += s.step.y;
-				if (s.Y >= GRIDSIZE) break;
-				s.tmax.y += s.tdelta.y;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-	}
-	return false;
-	// TODO:
-	// - A nested grid will let rays skip empty space much faster.
-	// - Coherent rays can traverse the grid faster together.
-	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
-	// - Loop-unrolling may speed up the while loop.
-	// - This code can be ported to GPU.
+      ray.indexMaterial = cell;
+      return true;
+    }
+    if (s.tmax.x < s.tmax.y)
+    {
+      if (s.tmax.x < s.tmax.z)
+      {
+        s.t = s.tmax.x, s.X += s.step.x;
+        if (s.X >= GRIDSIZE) break;
+        s.tmax.x += s.tdelta.x;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+    else
+    {
+      if (s.tmax.y < s.tmax.z)
+      {
+        s.t = s.tmax.y, s.Y += s.step.y;
+        if (s.Y >= GRIDSIZE) break;
+        s.tmax.y += s.tdelta.y;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+  }
+  return false;
+  // TODO:
+  // - A nested grid will let rays skip empty space much faster.
+  // - Coherent rays can traverse the grid faster together.
+  // - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+  // - Loop-unrolling may speed up the while loop.
+  // - This code can be ported to GPU.
 }
 
 bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
 {
-	//TODO maybe try to move this
-	// setup Amanatides & Woo grid traversal
-	DDAState s;
-	if (!Setup3DDDA(ray, s))
-	{
-		// proceed with traversal
+  //TODO maybe try to move this
+  // setup Amanatides & Woo grid traversal
+  DDAState s;
+  if (!Setup3DDDA(ray, s))
+  {
+    // proceed with traversal
 
-		return false;
-	}
-	// start stepping
-	while (1)
-	{
-		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != matType)
-		{
-			ray.t = s.t;
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
-			ray.indexMaterial = cell;
-			return true;
-		}
-		if (s.tmax.x < s.tmax.y)
-		{
-			if (s.tmax.x < s.tmax.z)
-			{
-				s.t = s.tmax.x, s.X += s.step.x;
-				if (s.X >= GRIDSIZE) break;
-				s.tmax.x += s.tdelta.x;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-		else
-		{
-			if (s.tmax.y < s.tmax.z)
-			{
-				s.t = s.tmax.y, s.Y += s.step.y;
-				if (s.Y >= GRIDSIZE) break;
-				s.tmax.y += s.tdelta.y;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-	}
+    return false;
+  }
+  // start stepping
+  while (1)
+  {
+    const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+    if (cell != matType)
+    {
+      ray.t = s.t;
+      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.indexMaterial = cell;
+      return true;
+    }
+    if (s.tmax.x < s.tmax.y)
+    {
+      if (s.tmax.x < s.tmax.z)
+      {
+        s.t = s.tmax.x, s.X += s.step.x;
+        if (s.X >= GRIDSIZE) break;
+        s.tmax.x += s.tdelta.x;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+    else
+    {
+      if (s.tmax.y < s.tmax.z)
+      {
+        s.t = s.tmax.y, s.Y += s.step.y;
+        if (s.Y >= GRIDSIZE) break;
+        s.tmax.y += s.tdelta.y;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+  }
 
-	ray.t = s.t;
-	//ray.rayNormal = ray.GetNormalVoxel();
+  ray.t = s.t;
+  //ray.rayNormal = ray.GetNormalVoxel();
 
-	// TODO:
-	// - A nested grid will let rays skip empty space much faster.
-	// - Coherent rays can traverse the grid faster together.
-	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
-	// - Loop-unrolling may speed up the while loop.
-	// - This code can be ported to GPU.
-	return false;
+  // TODO:
+  // - A nested grid will let rays skip empty space much faster.
+  // - Coherent rays can traverse the grid faster together.
+  // - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+  // - Loop-unrolling may speed up the while loop.
+  // - This code can be ported to GPU.
+  return false;
 }
 
 bool Scene::FindSmokeExit(Ray& ray) const
 {
-	//TODO maybe try to move this
-	// setup Amanatides & Woo grid traversal
-	DDAState s;
-	if (!Setup3DDDA(ray, s))
-	{
-		// proceed with traversal
+  //TODO maybe try to move this
+  // setup Amanatides & Woo grid traversal
+  DDAState s;
+  if (!Setup3DDDA(ray, s))
+  {
+    // proceed with traversal
 
-		return false;
-	}
-	// start stepping
-	while (1)
-	{
-		const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != MaterialType::SMOKE_HIGH_DENSITY && cell != MaterialType::SMOKE_LOW2_DENSITY && cell !=
-			MaterialType::SMOKE_LOW_DENSITY && cell != MaterialType::SMOKE_MID2_DENSITY && cell !=
-			MaterialType::SMOKE_MID_DENSITY)
-		{
-			ray.t = s.t;
+    return false;
+  }
+  // start stepping
+  while (1)
+  {
+    const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+    if (cell != MaterialType::SMOKE_HIGH_DENSITY && cell != MaterialType::SMOKE_LOW2_DENSITY && cell !=
+      MaterialType::SMOKE_LOW_DENSITY && cell != MaterialType::SMOKE_MID2_DENSITY && cell !=
+      MaterialType::SMOKE_MID_DENSITY)
+    {
+      ray.t = s.t;
 
-			ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
-			ray.indexMaterial = cell;
-			return true;
-		}
-		if (s.tmax.x < s.tmax.y)
-		{
-			if (s.tmax.x < s.tmax.z)
-			{
-				s.t = s.tmax.x, s.X += s.step.x;
-				if (s.X >= GRIDSIZE) break;
-				s.tmax.x += s.tdelta.x;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-		else
-		{
-			if (s.tmax.y < s.tmax.z)
-			{
-				s.t = s.tmax.y, s.Y += s.step.y;
-				if (s.Y >= GRIDSIZE) break;
-				s.tmax.y += s.tdelta.y;
-			}
-			else
-			{
-				s.t = s.tmax.z, s.Z += s.step.z;
-				if (s.Z >= GRIDSIZE) break;
-				s.tmax.z += s.tdelta.z;
-			}
-		}
-	}
+      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.indexMaterial = cell;
+      return true;
+    }
+    if (s.tmax.x < s.tmax.y)
+    {
+      if (s.tmax.x < s.tmax.z)
+      {
+        s.t = s.tmax.x, s.X += s.step.x;
+        if (s.X >= GRIDSIZE) break;
+        s.tmax.x += s.tdelta.x;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+    else
+    {
+      if (s.tmax.y < s.tmax.z)
+      {
+        s.t = s.tmax.y, s.Y += s.step.y;
+        if (s.Y >= GRIDSIZE) break;
+        s.tmax.y += s.tdelta.y;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+  }
 
-	ray.t = s.t;
-	//ray.rayNormal = ray.GetNormalVoxel();
+  ray.t = s.t;
+  //ray.rayNormal = ray.GetNormalVoxel();
 
-	// TODO:
-	// - A nested grid will let rays skip empty space much faster.
-	// - Coherent rays can traverse the grid faster together.
-	// - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
-	// - Loop-unrolling may speed up the while loop.
-	// - This code can be ported to GPU.
-	return false;
+  // TODO:
+  // - A nested grid will let rays skip empty space much faster.
+  // - Coherent rays can traverse the grid faster together.
+  // - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+  // - Loop-unrolling may speed up the while loop.
+  // - This code can be ported to GPU.
+  return false;
 }
 
 
 bool Scene::IsOccluded(Ray& ray) const
 {
-	// setup Amanatides & Woo grid traversal
-	DDAState s;
-	if (!Setup3DDDA(ray, s)) return false;
-	// start stepping
-	while (s.t < ray.t)
-	{
-		const auto cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell < MaterialType::GLASS) /* we hit a solid voxel */ return s.t < ray.t;
-		if (s.tmax.x < s.tmax.y)
-		{
-			if (s.tmax.x < s.tmax.z)
-			{
-				if ((s.X += s.step.x) >= GRIDSIZE) return false;
-				s.t = s.tmax.x, s.tmax.x += s.tdelta.x;
-			}
-			else
-			{
-				if ((s.Z += s.step.z) >= GRIDSIZE) return false;
-				s.t = s.tmax.z, s.tmax.z += s.tdelta.z;
-			}
-		}
-		else
-		{
-			if (s.tmax.y < s.tmax.z)
-			{
-				if ((s.Y += s.step.y) >= GRIDSIZE) return false;
-				s.t = s.tmax.y, s.tmax.y += s.tdelta.y;
-			}
-			else
-			{
-				if ((s.Z += s.step.z) >= GRIDSIZE) return false;
-				s.t = s.tmax.z, s.tmax.z += s.tdelta.z;
-			}
-		}
-	}
-	return false;
+  // setup Amanatides & Woo grid traversal
+  DDAState s;
+  if (!Setup3DDDA(ray, s)) return false;
+  // start stepping
+  while (s.t < ray.t)
+  {
+    const auto cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+    if (cell < MaterialType::GLASS) /* we hit a solid voxel */ return s.t < ray.t;
+    if (s.tmax.x < s.tmax.y)
+    {
+      if (s.tmax.x < s.tmax.z)
+      {
+        if ((s.X += s.step.x) >= GRIDSIZE) return false;
+        s.t = s.tmax.x, s.tmax.x += s.tdelta.x;
+      }
+      else
+      {
+        if ((s.Z += s.step.z) >= GRIDSIZE) return false;
+        s.t = s.tmax.z, s.tmax.z += s.tdelta.z;
+      }
+    }
+    else
+    {
+      if (s.tmax.y < s.tmax.z)
+      {
+        if ((s.Y += s.step.y) >= GRIDSIZE) return false;
+        s.t = s.tmax.y, s.tmax.y += s.tdelta.y;
+      }
+      else
+      {
+        if ((s.Z += s.step.z) >= GRIDSIZE) return false;
+        s.t = s.tmax.z, s.tmax.z += s.tdelta.z;
+      }
+    }
+  }
+  return false;
 }

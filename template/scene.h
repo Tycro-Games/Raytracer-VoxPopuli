@@ -186,7 +186,7 @@ namespace Tmpl8
 		//Assumes size of 1
 		void SetCubeBoundaries(const float3& position);
 		void SetTransform(const float3& _rotation);
-		void SetTransformNoPivot(const float3& _rotation);
+		void SetTransformPlayer(const mat4& _rotation);
 		void SetScale(const float3& scl);
 
 		void GenerateSomeNoise(float frequency);

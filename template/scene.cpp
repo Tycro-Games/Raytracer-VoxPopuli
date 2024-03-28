@@ -404,35 +404,28 @@ void Scene::SetTransform(const float3& _rotation)
 	invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
 }
 
-void Scene::SetTransformNoPivot(const float3& _rotation)
+void Scene::SetTransformPlayer(const mat4& _rotation)
 {
+	//as Max (230184) explained how I could rotate around a pivot
+	const float3 centerCube = (cube.b[0] + cube.b[1]) * 0.5f;
 	// Translate the object to the pivot point (center of the cube)
-	//magic offset to make it look right?
-	const mat4 translateToPivot = mat4::Translate(position - float3{0.25f, 0.0f, 0.5f});
+	const mat4 translateToPivot = mat4::Translate(centerCube + position);
 
+	// Translate back to the original position after rotation
+	const mat4 translateBack = mat4::Translate(-centerCube);
 
 	// Scale the object
 	const mat4 _scale = mat4::Scale(this->scale);
 
 	// Rotate the object around the pivot point
 	//const mat4 rot = mat4::RotateX(rotation.x) * mat4::RotateY(rotation.y) * mat4::RotateZ(rotation.z);
-	quat qRot;
-	qRot.fromAxisAngle(float3{1, 0, 0}, _rotation.x);
-	// Rotation around the Y-axis
-	quat qRotY;
-	qRotY.fromAxisAngle(float3{0, 1, 0}, _rotation.y);
-	qRot = qRotY * qRot; // Apply rotation around Y-axis
 
-	// Rotation around the Z-axis
-	quat qRotZ;
-	qRotZ.fromAxisAngle(float3{0, 0, 1}, _rotation.z);
-	qRot = qRotZ * qRot; // Apply rotation around Z-axis
-	const mat4 rot = qRot.toMatrix();
+	const mat4 rot = _rotation;
 	// Calculate the inverse transformation matrix
-	matrix = translateToPivot * _scale * rot;
+	matrix = translateToPivot * _scale * rot * translateBack;
 
 
-	invMatrix = (translateToPivot * rot * _scale).Inverted();
+	invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
 }
 
 Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
@@ -808,7 +801,7 @@ bool Scene::IsOccluded(Ray& ray) const
 	while (s.t < ray.t)
 	{
 		const auto cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-		if (cell != MaterialType::NONE) /* we hit a solid voxel */ return s.t < ray.t;
+		if (cell < MaterialType::GLASS) /* we hit a solid voxel */ return s.t < ray.t;
 		if (s.tmax.x < s.tmax.y)
 		{
 			if (s.tmax.x < s.tmax.z)

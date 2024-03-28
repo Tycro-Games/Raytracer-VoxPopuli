@@ -161,7 +161,7 @@ struct Timer
 {
 	Timer()
 	{
-		reset();
+		reseting();
 	}
 
 	float elapsed() const
@@ -171,7 +171,7 @@ struct Timer
 		return (float)time_span.count();
 	}
 
-	void reset()
+	void reseting()
 	{
 		start = chrono::high_resolution_clock::now();
 	}

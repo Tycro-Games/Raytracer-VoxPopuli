@@ -449,9 +449,13 @@ void Renderer::AddVoxelVolume()
 {
 	voxelVolumes.emplace_back(Scene({0}, 16));
 	voxelVolumes.emplace_back(Scene({0.0f, -1.0f, 0.0f}, 1));
+	voxelVolumes.emplace_back(Scene({5.0f, 0.0f, 0.0f}, 1));
 	voxelVolumes[0].LoadModel(*this, "assets/player.vox");
+	voxelVolumes[0].SetTransform(float3{0});
 	voxelVolumes[1].scale = {5.0f, 1.0f, 5.0f};
 	voxelVolumes[1].SetTransform({0});
+	voxelVolumes[2].scale = {5.0f, 5.0f, 5.0f};
+	voxelVolumes[2].SetTransform({0});
 }
 
 void Renderer::ShapesSetUp()
@@ -834,7 +838,6 @@ float3 Renderer::Trace(Ray& ray, int depth)
 
 			return Trace(newRay, depth - 1) * color;
 		}
-	//from Erik Cupak
 	case MaterialType::SMOKE_LOW_DENSITY:
 	case MaterialType::SMOKE_LOW2_DENSITY:
 	case MaterialType::SMOKE_MID_DENSITY:
@@ -851,11 +854,44 @@ float3 Renderer::Trace(Ray& ray, int depth)
 			bool isInsideVolume = true;
 			float intensity = 0;
 			float distanceTraveled = 0;
+			if (voxIndex == 0)
+			{
+				float3 incLight{0};
 
+				Illumination(ray, incLight);
+				float sqrThreshold = 16.0f;
+				float value = sqrLength(incLight);
+				if (value > sqrThreshold)
+				{
+					inLight = true;
+					std::cout << "Player is in the light\n";
+				}
+			}
 			if (isInGlass)
 			{
-				color = GetAlbedo(ray.indexMaterial);
-				intensity = GetEmissive(ray.indexMaterial);
+				//only and only for the player
+				/*if (voxIndex == 0)
+				{
+					float3 incLight{0};
+
+					Illumination(ray, incLight);
+					float threshold = 25.1f;
+					if (sqrLength(incLight) > threshold)
+					{
+						inLight = true;
+						std::cout << "Player is in the light\n";
+					}
+					else if (!inLight)
+					{
+						intensity = GetEmissive(ray.indexMaterial);
+						color = GetAlbedo(ray.indexMaterial);
+					}
+				}*/
+				if (!inLight)
+				{
+					intensity = GetEmissive(ray.indexMaterial);
+					color = GetAlbedo(ray.indexMaterial);
+				}
 				//only the first one has glass
 				Ray backupRay = ray;
 
@@ -1269,15 +1305,17 @@ void Renderer::Tick(const float deltaTime)
 	else
 	{
 	}
+	inLight = false;
 	//game logic
 	if (player.UpdateInput())
 	{
 		Ray checkOcclusion = player.GetRay();
+
 		if (FindNearestPlayer(checkOcclusion) > 0 && checkOcclusion.t < player.GetDistance())
 		{
 			//check for normal and rotate
 			//move player
-			player.MovePlayer(voxelVolumes[0], checkOcclusion.IntersectionPoint());
+			player.MovePlayer(voxelVolumes[0], checkOcclusion.IntersectionPoint(), checkOcclusion.rayNormal);
 		}
 		//staticCamera = !IsOccludedPlayerClimbable(checkOcclusion);
 	}

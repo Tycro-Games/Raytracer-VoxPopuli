@@ -169,5 +169,6 @@ namespace Tmpl8
 
 		//player
 		PlayerCharacter player;
+		bool inLight = false;
 	};
 } // namespace Tmpl8

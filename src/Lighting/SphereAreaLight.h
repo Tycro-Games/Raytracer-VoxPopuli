@@ -10,5 +10,5 @@ struct SphereAreaLightData
 
 struct SphereAreaLight
 {
-	SphereAreaLightData data{{0.5f, 0.5f, .50f}, {1.f}, 1.2f, 0.2f};
+	SphereAreaLightData data{{-2.5f, 0.5f, .50f}, {1.f}, 1.2f, 0.2f};
 };

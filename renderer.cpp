@@ -491,10 +491,10 @@ void Renderer::Init()
   CopyToPrevCamera();
   int skyBpp;
   skyPixels = stbi_loadf("assets/sky_19.hdr", &skyWidth, &skyHeight, &skyBpp, 0);
-  for (int i = 0; i < skyWidth * skyHeight * 3; i++)
-  {
-    skyPixels[i] = sqrtf(skyPixels[i]);
-  }
+  /* for (int i = 0; i < skyWidth * skyHeight * 3; i++)
+   {
+     skyPixels[i] = sqrtf(skyPixels[i]);
+   }*/
   //sizeof(Ray);
   InitSeed(static_cast<uint>(time(nullptr)));
   //multiply by 16 because float4 consists of 16 bytes

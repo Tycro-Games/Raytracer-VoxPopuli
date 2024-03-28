@@ -56,7 +56,7 @@ bool PlayerCharacter::UpdateInput()
     return false;
 
   bool IsMoving = false;
-  angle = 0.0f;
+  angle = 0.0f;                                                         
 
   if (IsKeyDown(GLFW_KEY_W))
   {

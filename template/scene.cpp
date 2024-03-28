@@ -436,7 +436,7 @@ Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(world
   //sets the cube
   grid.resize(GRIDSIZE3);
   SetCubeBoundaries(position);
-  ResetGrid(MaterialType::NON_METAL_BLUE);
+  ResetGrid(MaterialType::NON_METAL_PINK);
   // initialize the mainScene using Perlin noise, parallel over z
   //LoadModel("assets/teapot.vox");
 

@@ -23,12 +23,15 @@ namespace Tmpl8
     float GetRoughness(size_t indexMaterial) const;
     float3 DirectionalLightEvaluate(Ray& ray, const DirectionalLightData& lightData);
     void ResetAccumulator();
+    void RandomizeSmokeColors() const;
     void MaterialSetUp();
     void AddSphere();
     void RemoveLastSphere();
     void AddTriangle();
+    void CreateTrianglePattern();
     void RemoveTriangle();
     void RemoveVoxelVolume();
+    void SetUpFirstZone();
     void AddVoxelVolume();
     void ShapesSetUp();
     // game flow methods
@@ -117,7 +120,7 @@ namespace Tmpl8
     std::vector<uint32_t> vertIterator;
     // data members
     int2 mousePos;
-    int32_t maxBounces = 10;
+    int32_t maxBounces = 14;
     float weight = .10f;
     bool staticCamera = true;
     float4* accumulator;
@@ -162,7 +165,7 @@ namespace Tmpl8
 
 
     //skydome
-    float HDRLightContribution = 5.9f;
+    float HDRLightContribution = 1.0f;
     int skyWidth, skyHeight;
     float* skyPixels;
 
@@ -170,5 +173,6 @@ namespace Tmpl8
     //player
     PlayerCharacter player;
     bool inLight = false;
+    float triggerCheckpoint = -17.0f;
   };
 } // namespace Tmpl8

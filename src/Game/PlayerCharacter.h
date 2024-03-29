@@ -23,7 +23,7 @@ private:
   float3 origin{0};
   float distance{3};
   std::unique_ptr<Timer> moving;
-  float timeToMove = .20f;
+  float timeToMove = .020f;
   quat rotation{0, 0, 0, 0};
   quat prevRotation{0, 0, 0, 0};
   float angle;

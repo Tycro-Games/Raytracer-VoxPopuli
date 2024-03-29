@@ -344,38 +344,58 @@ void Renderer::ResetAccumulator()
   numRenderedFrames = 0;
 }
 
+void Renderer::RandomizeSmokeColors() const
+{
+  const float3 smokeColor = float3{1.0f, 0.7f, 1.0f};
+  for (int i = MaterialType::SMOKE_LOW_DENSITY; i <= MaterialType::SMOKE_HIGH_DENSITY; i++)
+  {
+    materials[i]->albedo = smokeColor + float3{Rand(-0.2f, 0), Rand(-0.2f, 0.2f), Rand(-0.1f, 0)};
+  }
+}
+
 void Renderer::MaterialSetUp()
 {
+  //first 5
   const auto materialDifWhite = make_shared<Material>(float3(1, 1, 1));
   const auto materialDifRed = make_shared<Material>(float3(1, 0, 0));
   const auto materialDifBlue = make_shared<Material>(float3(0, 0, 1));
   const auto materialDifGreen = make_shared<Material>(float3(0, 1, 0), 0.0f);
   const auto partialMetal = make_shared<Material>(float3(1, 1, 1), 0.75f);
 
-  //Mirror
+  //Mirror   next3
   const auto materialDifReflectivity = make_shared<Material>(float3(1));
   const auto materialDifRefMid = make_shared<Material>(float3(0, 1, 1), 0.5f);
-  const auto materialDifRefLow = make_shared<Material>(float3(1, 1, 0), 0.1f);
+  const auto materialDifRefLow = make_shared<Material>(float3(0.9f), 0.01f);
   //partial mirror
   const auto glass = make_shared<Material>(float3(1, 1, 1));
   glass->IOR = 1.45f;
-  float3 smokeColor = float3{1.0f, 0.8f, 0.0f};
+  float3 smokeColor = float3{1.0f, 0.7f, 1.0f};
 
   const auto smoke = make_shared<Material>(smokeColor);
   smoke->IOR = 1.0f;
-  smoke->emissiveStrength = 8.0f;
+  smoke->emissiveStrength = 3.0f;
   const auto smoke1 = make_shared<Material>(smokeColor);
+
+
   smoke1->IOR = 1.0f;
-  smoke1->emissiveStrength = 12.0f;
+  smoke1->emissiveStrength = 8.0f;
   const auto smoke2 = make_shared<Material>(smokeColor);
+
+
   smoke2->IOR = 1.0f;
-  smoke2->emissiveStrength = 15.0f;
+  smoke2->emissiveStrength = 12.0f;
   const auto smoke3 = make_shared<Material>(smokeColor);
+
+
   smoke3->IOR = 1.0f;
-  smoke3->emissiveStrength = 20.0f;
+  smoke3->emissiveStrength = 15.0f;
   const auto smoke4 = make_shared<Material>(smokeColor);
+
   smoke4->IOR = 1.0f;
-  smoke4->emissiveStrength = 22.0f;
+  smoke4->emissiveStrength = 16.0f;
+  const auto smoke5 = make_shared<Material>(float3{0});
+  smoke5->IOR = 1.0f;
+  smoke5->emissiveStrength = 22.0f;
 
   const auto emissive = make_shared<Material>(smokeColor);
   emissive->emissiveStrength = 5.0f;
@@ -396,6 +416,7 @@ void Renderer::MaterialSetUp()
   smokeMaterials.push_back(smoke2);
   smokeMaterials.push_back(smoke3);
   smokeMaterials.push_back(smoke4);
+  smokeMaterials.push_back(smoke5);
   emissiveMaterials.push_back(emissive);
 
   for (auto& mat : nonMetalMaterials)
@@ -435,6 +456,17 @@ void Renderer::AddTriangle()
   triangles.push_back(Triangle{static_cast<MaterialType::MatType>(Rand(MaterialType::EMISSIVE))});
 }
 
+void Renderer::CreateTrianglePattern()
+{
+  float3 triPos = {-1.75f, 0.0f, 3.0f};
+  float scale = 0.25f;
+  for (int i = 0; i < 10; i++)
+  {
+    triangles.push_back(Triangle{static_cast<MaterialType::MatType>(Rand(MaterialType::METAL_LOW)), triPos, scale});
+    triPos.x += scale * 2;
+  }
+}
+
 void Renderer::RemoveTriangle()
 {
   triangles.pop_back();
@@ -445,13 +477,34 @@ void Renderer::RemoveVoxelVolume()
   voxelVolumes.pop_back();
 }
 
-void Renderer::AddVoxelVolume()
+void Renderer::SetUpFirstZone()
 {
+  CreateTrianglePattern();
   voxelVolumes.emplace_back(Scene({0}, 16));
+  //environment
   voxelVolumes.emplace_back(Scene({0.0f, -1.0f, 0.0f}, 1));
-  voxelVolumes.emplace_back(Scene({5.0f, 0.0f, 0.0f}, 1));
-  voxelVolumes.emplace_back(Scene({-5.0f, 0.0f, 0.0f}, 1));
-  voxelVolumes.emplace_back(Scene({0.0f, 3.0f, 0.0f}, 1));
+  voxelVolumes.emplace_back(Scene({6.0f, 0.0f, 0.0f}, 1));
+  voxelVolumes.emplace_back(Scene({-6.0f, 0.0f, 0.0f}, 1));
+  voxelVolumes.emplace_back(Scene({0.0f, 4.0f, 0.0f}, 1));
+  //checkpoint
+  voxelVolumes.emplace_back(Scene({0.0f, 0.3f, 0.0f}, 64));
+  //Text
+  voxelVolumes.emplace_back(Scene({0.0f, 3.0f, -3.0f}, 32));
+  //bridge
+  //7
+  voxelVolumes.emplace_back(Scene({0.0f, 4.0f, -7.0f}, 1));
+  voxelVolumes.emplace_back(Scene({-1.0f, 0.0f, -11.0f}, 1));
+  //a bit to the right
+  voxelVolumes.emplace_back(Scene({-5.0f, 1.0f, -12.0f}, 1));
+
+  voxelVolumes.emplace_back(Scene({-3.0f, 1.0f, -19.0f}, 1));
+
+  voxelVolumes.emplace_back(Scene({0.0f, -1.0f, -18.0f}, 1));
+  //checkpoint two
+  voxelVolumes.emplace_back(Scene({0.0f, 0.3f, -17.f}, 64));
+
+
+  //setup
   voxelVolumes[0].LoadModel(*this, "assets/player.vox");
   voxelVolumes[0].SetTransform(float3{0});
   voxelVolumes[1].scale = {5.0f, 1.0f, 5.0f};
@@ -460,14 +513,53 @@ void Renderer::AddVoxelVolume()
   voxelVolumes[2].SetTransform({0});
   voxelVolumes[3].scale = {5.0f, 5.0f, 5.0f};
   voxelVolumes[3].SetTransform({0});
-  voxelVolumes[4].scale = {5.0f, 1.0f, 5.0f};
+  voxelVolumes[4].scale = {10.0f, 1.0f, 10.0f};
   voxelVolumes[4].SetTransform({0});
+  voxelVolumes[5].scale = {3.0f};
+  RandomizeSmokeColors();
+  voxelVolumes[5].GenerateSomeSmoke(0.167f);
+  voxelVolumes[5].SetTransform({0});
+  voxelVolumes[6].LoadModelRandomMaterials("assets/Text.vox");
+  voxelVolumes[6].scale = {5.0f};
+  voxelVolumes[6].SetTransform({0});
+
+
+  //DOOR REUSE THIS
+  voxelVolumes[7].scale = {10.0f, 1.0f, 5.0f};
+  voxelVolumes[7].SetTransform({0});
+
+  voxelVolumes[8].scale = {3.0f, 10.0f, 1.0f};
+  voxelVolumes[8].ResetGrid(MaterialType::GLASS);
+  voxelVolumes[8].SetTransform({0});
+
+  voxelVolumes[9].scale = {2.0f, 3.0f, 10.0f};
+  voxelVolumes[9].SetTransform({0});
+  //voxelVolumes[9].ResetGrid(MaterialType::GLASS);
+
+  voxelVolumes[10].scale = {7.0f, 1.0f, 1.0f};
+  voxelVolumes[10].SetTransform({0});
+  voxelVolumes[11].scale = {5.0f, 1.0f, 5.0f};
+  voxelVolumes[11].SetTransform({0});
+  //CHECKPOINT
+  voxelVolumes[12].scale = {2.0f};
+  //voxelVolumes[12].GenerateSomeSmoke(0.167f);
+  voxelVolumes[12].SetTransform({0});
+  voxelVolumes[12].ResetGrid(MaterialType::NONE);
+  for (int i = 1; i < 5; i++)
+  {
+    voxelVolumes[i].ResetGrid(MaterialType::METAL_LOW);
+  }
+}
+
+void Renderer::AddVoxelVolume()
+{
+  voxelVolumes.emplace_back(Scene({0}, 64));
 }
 
 void Renderer::ShapesSetUp()
 {
   //AddSphere();
-  AddVoxelVolume();
+  SetUpFirstZone();
   /*constexpr int sizeX = 6;
   constexpr int sizeY = 1;
   constexpr int sizeZ = 2;
@@ -608,7 +700,7 @@ int32_t Renderer::FindNearest(Ray& ray)
     Ray backupRay = ray;
 
 
-    mat4 invMat = voxelVolumes[i].invMatrix;
+    const mat4& invMat = voxelVolumes[i].invMatrix;
 #if 1
     ray.O4 = TransformPosition_SSEM(ray.O4, invMat);
 
@@ -712,7 +804,7 @@ int32_t Renderer::FindNearestPlayer(Ray& ray)
 		ray.Dsign = ray.ComputeDsign(ray.D);
 #endif
 
-    if (voxelVolumes[i].FindNearest(ray))
+    if (voxelVolumes[i].FindNearestExcept(ray, MaterialType::SMOKE_LOW_DENSITY, MaterialType::SMOKE_PLAYER))
     {
       voxelIndex = i;
     }
@@ -810,7 +902,20 @@ float3 Renderer::Trace(Ray& ray, int depth)
       {
         color = GetAlbedo(ray.indexMaterial);
         //only the first one has glass
+        Ray backupRay = ray;
+
+        mat4 invMat = voxelVolumes[voxIndex].invMatrix;
+        ray.O = TransformPosition(ray.O, invMat);
+
+
+        ray.D = TransformVector(ray.D, invMat);
+
+        ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+        ray.Dsign = ray.ComputeDsign(ray.D);
+
         isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::GLASS);
+        backupRay.t = ray.t;
+        backupRay.CopyToPrevRay(ray);
       }
       if (!isInsideVolume)
       {
@@ -852,6 +957,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
   case MaterialType::SMOKE_MID_DENSITY:
   case MaterialType::SMOKE_MID2_DENSITY:
   case MaterialType::SMOKE_HIGH_DENSITY:
+  case MaterialType::SMOKE_PLAYER:
     {
       float3 color{1.0f};
       //code for glass
@@ -897,16 +1003,13 @@ float3 Renderer::Trace(Ray& ray, int depth)
             color = GetAlbedo(ray.indexMaterial);
           }
         }*/
-        if (!inLight)
-        {
-          intensity = GetEmissive(ray.indexMaterial);
-          color = GetAlbedo(ray.indexMaterial);
-        }
+
+        intensity = GetEmissive(ray.indexMaterial);
+        color = GetAlbedo(ray.indexMaterial);
+
         //only the first one has glass
         Ray backupRay = ray;
 
-        float3 origin = ray.O;
-        float3 dir = ray.D;
         mat4 invMat = voxelVolumes[voxIndex].invMatrix;
         ray.O = TransformPosition(ray.O, invMat);
 
@@ -1289,10 +1392,11 @@ void Renderer::Tick(const float deltaTime)
 
   if (staticCamera)
   {
-    if (camera.HandleInput(deltaTime))
-    {
-      ResetAccumulator();
-    }
+    if (!IsKeyDown(GLFW_KEY_SPACE))
+      if (camera.HandleInput(deltaTime))
+      {
+        ResetAccumulator();
+      }
     camera.SetFrustumNormals();
 
     // pixel loop
@@ -1322,16 +1426,34 @@ void Renderer::Tick(const float deltaTime)
     player.RevertMovePlayer(voxelVolumes[0]);
     ResetAccumulator();
   }
+
   player.Update(deltaTime);
-  if (player.UpdateInput())
+  if (player.UpdateInput() && IsKeyDown(GLFW_KEY_SPACE))
   {
     Ray checkOcclusion = player.GetRay();
-
     if (FindNearestPlayer(checkOcclusion) > 0 && checkOcclusion.t < player.GetDistance())
     {
       //check for normal and rotate
       //move player
-      player.MovePlayer(voxelVolumes[0], checkOcclusion.IntersectionPoint(), checkOcclusion.rayNormal);
+      constexpr float offsetPlayer = 5.0f;
+
+      camera.camPos = float3{camera.camPos.x, camera.camPos.y, checkOcclusion.O.z + offsetPlayer};
+      float3 intersectionPoint = checkOcclusion.IntersectionPoint();
+      camera.camTarget = intersectionPoint;
+      camera.HandleInput(0.0f);
+      //reset level state load next chunk
+
+      player.MovePlayer(voxelVolumes[0], intersectionPoint, checkOcclusion.rayNormal);
+      if (intersectionPoint.z < triggerCheckpoint && intersectionPoint.y < 0.5f)
+      {
+        RandomizeSmokeColors();
+        triggerCheckpoint -= 20.0f;
+        voxelVolumes.erase(voxelVolumes.begin() + 1, voxelVolumes.end() - 3);
+        triangles.clear();
+        voxelVolumes[3].GenerateSomeSmoke(0.167f);
+        player.SetPrevios(voxelVolumes[0]);
+      }
+      ResetAccumulator();
     }
     //staticCamera = !IsOccludedPlayerClimbable(checkOcclusion);
   }
@@ -1955,8 +2077,7 @@ void Renderer::HandleImguiTriangles()
   }
   if (ImGui::Button("Create 5 new Triangles"))
   {
-    for (int i = 0; i < 5; i++)
-      AddTriangle();
+    CreateTrianglePattern();
     ResetAccumulator();
   }
   if (ImGui::Button("Delete last Triangle"))

@@ -281,6 +281,7 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
   }
 }
 
+
 void Scene::GenerateSomeSmoke(float frequency = 0.001f)
 {
   ResetGrid();
@@ -288,7 +289,6 @@ void Scene::GenerateSomeSmoke(float frequency = 0.001f)
 
   const auto fnPerlin = FastNoise::New<FastNoise::Perlin>();
   const auto fnFractal = FastNoise::New<FastNoise::FractalFBm>();
-
 
   // Create an array of floats to store the noise output in
   std::vector<float> noiseOutput(GRIDSIZE3);
@@ -301,7 +301,7 @@ void Scene::GenerateSomeSmoke(float frequency = 0.001f)
     {
       for (uint32_t x = 0; x < WORLDSIZE; x++)
       {
-        float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+        const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
         MaterialType::MatType color = MaterialType::NONE;
         const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
 
@@ -311,10 +311,10 @@ void Scene::GenerateSomeSmoke(float frequency = 0.001f)
         };
 
         //Elipse like shape
-        float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
-                                                static_cast<float>(WORLDSIZE) / 2.0f);
-        float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
-                                                static_cast<float>(WORLDSIZE) / 2.0f);
+        const float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
+                                                      static_cast<float>(WORLDSIZE) / 2.0f);
+        const float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
+                                                      static_cast<float>(WORLDSIZE) / 2.0f);
         const float3 dimensions{
           randomX, WORLDSIZE / 3.0f,
           randomZ
@@ -528,6 +528,85 @@ void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_r
   delete[] buffer;
 }
 
+void Scene::LoadModelRandomMaterials(const char* filename, uint32_t scene_read_flags)
+{
+  ResetGrid();
+  // open the file
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+  FILE* fp;
+  if (0 != fopen_s(&fp, filename, "rb"))
+    fp = 0;
+#else
+	FILE* fp = fopen(filename, "rb");
+#endif
+  if (!fp)
+    return;
+
+  // get the buffer size which matches the size of the file
+  fseek(fp, 0, SEEK_END);
+  const uint32_t buffer_size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  // load the file into a memory buffer
+  uint8_t* buffer = new uint8_t[buffer_size];
+  fread(buffer, buffer_size, 1, fp);
+  fclose(fp);
+
+  // construct the scene from the buffer
+  const auto scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->models[0];
+  const auto scenePallete = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->palette;
+  //created using chatgpt promts
+  // Assign colors based on the loaded scene
+  // Define scaling factors for each dimension
+  if (scene->size_x > GRIDSIZE)
+  {
+    // Modify scaleModel variables based on the comparison
+    scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
+    scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
+    scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+  }
+  //do stuff
+  for (uint32_t z = 0; z < scene->size_z; ++z)
+  {
+    for (uint32_t y = 0; y < scene->size_y; ++y)
+    {
+      for (uint32_t x = 0; x < scene->size_x; ++x)
+      {
+        // Calculate the scaled position
+        // Calculate the scaled position
+        const int scaledX = static_cast<int>((static_cast<float>(x) *
+          scaleModel.x));
+        const int scaledY = static_cast<int>(static_cast<float>(z) *
+          scaleModel.y);
+        const int scaledZ = static_cast<int>(static_cast<float>(y) *
+          scaleModel.z);
+
+
+        // Assume each voxel has a color index, and map that to MatType
+        const auto materialIndex = static_cast<MaterialType::MatType>(Rand(
+          MaterialType::SMOKE_MID2_DENSITY, MaterialType::SMOKE_HIGH_DENSITY));
+        // Calculate index into voxel_data based on the current position
+        const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
+        // Access color index from voxel_data
+        uint8_t voxelColorIndex = scene->voxel_data[index];
+        const auto col = scenePallete.color[voxelColorIndex];
+
+        if (voxelColorIndex == 0)
+        {
+          continue;
+        }
+
+
+        // Set the color at position (x, y, z)
+        Set(scaledX, scaledY, scaledZ, materialIndex);
+      }
+    }
+  }
+
+  // Cleanup
+  delete[] buffer;
+}
+
 void Scene::CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissiveSphere)
 {
   //ResetGrid();
@@ -608,6 +687,68 @@ bool Scene::FindNearest(Ray& ray) const
   {
     const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
     if (cell != MaterialType::NONE && s.t < ray.t)
+    {
+      ray.t = s.t;
+
+      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+
+      ray.indexMaterial = cell;
+      return true;
+    }
+    if (s.tmax.x < s.tmax.y)
+    {
+      if (s.tmax.x < s.tmax.z)
+      {
+        s.t = s.tmax.x, s.X += s.step.x;
+        if (s.X >= GRIDSIZE) break;
+        s.tmax.x += s.tdelta.x;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+    else
+    {
+      if (s.tmax.y < s.tmax.z)
+      {
+        s.t = s.tmax.y, s.Y += s.step.y;
+        if (s.Y >= GRIDSIZE) break;
+        s.tmax.y += s.tdelta.y;
+      }
+      else
+      {
+        s.t = s.tmax.z, s.Z += s.step.z;
+        if (s.Z >= GRIDSIZE) break;
+        s.tmax.z += s.tdelta.z;
+      }
+    }
+  }
+  return false;
+  // TODO:
+  // - A nested grid will let rays skip empty space much faster.
+  // - Coherent rays can traverse the grid faster together.
+  // - Perhaps s.X / s.Y / s.Z (the integer grid coordinates) can be stored in a single uint?
+  // - Loop-unrolling may speed up the while loop.
+  // - This code can be ported to GPU.
+}
+
+bool Scene::FindNearestExcept(Ray& ray, MaterialType::MatType lowerBound, MaterialType::MatType higherBound) const
+{
+  // setup Amanatides & Woo grid traversal
+  DDAState s;
+
+  if (!Setup3DDDA(ray, s))
+  {
+    return false;
+  }
+  // start stepping
+  while (s.t < ray.t)
+  {
+    const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
+    if (cell != MaterialType::NONE && s.t < ray.t && (cell < lowerBound || cell > higherBound))
     {
       ray.t = s.t;
 
@@ -737,9 +878,7 @@ bool Scene::FindSmokeExit(Ray& ray) const
   while (1)
   {
     const MaterialType::MatType cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-    if (cell != MaterialType::SMOKE_HIGH_DENSITY && cell != MaterialType::SMOKE_LOW2_DENSITY && cell !=
-      MaterialType::SMOKE_LOW_DENSITY && cell != MaterialType::SMOKE_MID2_DENSITY && cell !=
-      MaterialType::SMOKE_MID_DENSITY)
+    if (cell > MaterialType::SMOKE_PLAYER || cell < MaterialType::SMOKE_LOW_DENSITY)
     {
       ray.t = s.t;
 

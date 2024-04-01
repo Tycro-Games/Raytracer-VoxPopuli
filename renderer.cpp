@@ -92,9 +92,9 @@ void Renderer::InitMultithreading()
 
 void Renderer::SetUpLights()
 {
-  pointLights.resize(2);
-  spotLights.resize(2);
-  areaLights.resize(2);
+  pointLights.resize(0);
+  spotLights.resize(5);
+  areaLights.resize(0);
   CalculateLightCount();
 }
 
@@ -459,7 +459,7 @@ void Renderer::AddTriangle()
 void Renderer::CreateTrianglePattern()
 {
   float3 triPos = {-1.75f, 0.0f, 3.0f};
-  float scale = 0.25f;
+  const float scale = 0.25f;
   for (int i = 0; i < 10; i++)
   {
     triangles.push_back(Triangle{static_cast<MaterialType::MatType>(Rand(MaterialType::METAL_LOW)), triPos, scale});
@@ -477,6 +477,99 @@ void Renderer::RemoveVoxelVolume()
   voxelVolumes.pop_back();
 }
 
+//5 parts
+void Renderer::CreateBridge(const float3& offset, const float3& enterOffset, MaterialType::MatType doorMaterial)
+{
+  //7
+  std::vector<Scene> bridgesParts;
+  bridgesParts.emplace_back(float3{0.0f, 4.0f, -7.0f} + offset + enterOffset, 1);
+  bridgesParts.emplace_back(float3{-1.0f, 0.0f, -11.0f} + offset, 1);
+  //a bit to the right                                                  
+  bridgesParts.emplace_back(float3{-5.0f, 1.0f, -12.0f} + offset, 1);
+
+  bridgesParts.emplace_back(float3{-3.0f, 1.0f, -19.0f} + offset, 1);
+
+  bridgesParts.emplace_back(float3{0.0f, -1.0f, -18.0f} + offset, 1);
+  bridgesParts.emplace_back(float3{0.0f, 0.3f, -17.f} + offset, 64);
+
+  //DOOR REUSE THIS
+  bridgesParts[0].scale = {10.0f, 1.0f, 5.0f};
+  bridgesParts[0].SetTransform({0});
+
+  bridgesParts[1].scale = {3.0f, 10.0f, 1.0f};
+  bridgesParts[1].ResetGrid(doorMaterial);
+  bridgesParts[1].SetTransform({0});
+
+  bridgesParts[2].scale = {2.0f, 3.0f, 10.0f};
+  bridgesParts[2].SetTransform({0});
+  //voxelVolumes[9].ResetGrid(MaterialType::GLASS);
+
+  bridgesParts[3].scale = {7.0f, 1.0f, 1.0f};
+  bridgesParts[3].SetTransform({0});
+  bridgesParts[4].scale = {5.0f, 1.0f, 5.0f};
+  bridgesParts[4].SetTransform({0});
+
+  //add all up
+  //CHECKPOINT
+  bridgesParts[5].scale = {2.0f};
+  //voxelVolumes[12].GenerateSomeSmoke(0.167f);
+  bridgesParts[5].SetTransform({0});
+  bridgesParts[5].ResetGrid(MaterialType::NONE);
+  voxelVolumes.insert(voxelVolumes.end(), bridgesParts.begin(), bridgesParts.end());
+}
+
+void Renderer::CreateBridgeBlind(const float3& offset, const float3& enterOffset, MaterialType::MatType doorMaterial)
+{
+  //7
+  std::vector<Scene> bridgesParts;
+  bridgesParts.emplace_back(float3{0.0f, 4.0f, -7.0f} + offset + enterOffset, 1);
+  bridgesParts.emplace_back(float3{-1.0f, 0.0f, -11.0f} + offset, 1);
+  //a bit to the right                                                  
+  bridgesParts.emplace_back(float3{5.0f, -41.0f, -12.0f} + offset, 1);
+  bridgesParts.emplace_back(float3{-5.0f, 1.0f, -12.0f} + offset, 1);
+
+  bridgesParts.emplace_back(float3{3.0f, 51.0f, -19.0f} + offset, 1);
+  bridgesParts.emplace_back(float3{-3.0f, 1.0f, -19.0f} + offset, 1);
+
+  bridgesParts.emplace_back(float3{0.0f, -1.0f, -18.0f} + offset, 1);
+  bridgesParts.emplace_back(float3{0.0f, 0.3f, -17.f} + offset, 64);
+
+  //DOOR REUSE THIS
+  bridgesParts[0].scale = {10.0f, 1.0f, 5.0f};
+  bridgesParts[0].SetTransform({0});
+
+  bridgesParts[1].scale = {3.0f, 10.0f, 1.0f};
+  bridgesParts[1].ResetGrid(doorMaterial);
+  bridgesParts[1].SetTransform({0});
+
+  bridgesParts[2].scale = {2.0f, 3.0f, 10.0f};
+  bridgesParts[2].SetTransform({00,});
+  bridgesParts[2].ResetGrid(MaterialType::METAL_LOW);
+  bridgesParts[3].scale = {2.0f, 3.0f, 10.0f};
+  bridgesParts[3].SetTransform({0});
+
+  //bridgesParts[4].ResetGrid(MaterialType::METAL_LOW);
+  bridgesParts[4].scale = {7.0f, 1.0f, 1.0f};
+  bridgesParts[4].SetTransform({0});
+
+
+  //voxelVolumes[9].ResetGrid(MaterialType::GLASS);
+
+  bridgesParts[5].scale = {7.0f, 1.0f, 1.0f};
+  //bridgesParts[5].ResetGrid(MaterialType::METAL_LOW);
+  bridgesParts[5].SetTransform({0});
+  bridgesParts[6].scale = {5.0f, 1.0f, 5.0f};
+  bridgesParts[6].SetTransform({0});
+
+  //add all up
+  //CHECKPOINT
+  bridgesParts[7].scale = {2.0f};
+  //voxelVolumes[12].GenerateSomeSmoke(0.167f);
+  bridgesParts[7].SetTransform({0});
+  bridgesParts[7].ResetGrid(MaterialType::NONE);
+  voxelVolumes.insert(voxelVolumes.end(), bridgesParts.begin(), bridgesParts.end());
+}
+
 void Renderer::SetUpFirstZone()
 {
   CreateTrianglePattern();
@@ -491,17 +584,10 @@ void Renderer::SetUpFirstZone()
   //Text
   voxelVolumes.emplace_back(Scene({0.0f, 3.0f, -3.0f}, 32));
   //bridge
-  //7
-  voxelVolumes.emplace_back(Scene({0.0f, 4.0f, -7.0f}, 1));
-  voxelVolumes.emplace_back(Scene({-1.0f, 0.0f, -11.0f}, 1));
-  //a bit to the right
-  voxelVolumes.emplace_back(Scene({-5.0f, 1.0f, -12.0f}, 1));
+  CreateBridge({0, 0, 0.0f});
+  //CreateBridge({0.0f, 0.0f, -20.0f});
 
-  voxelVolumes.emplace_back(Scene({-3.0f, 1.0f, -19.0f}, 1));
-
-  voxelVolumes.emplace_back(Scene({0.0f, -1.0f, -18.0f}, 1));
   //checkpoint two
-  voxelVolumes.emplace_back(Scene({0.0f, 0.3f, -17.f}, 64));
 
 
   //setup
@@ -524,31 +610,30 @@ void Renderer::SetUpFirstZone()
   voxelVolumes[6].SetTransform({0});
 
 
-  //DOOR REUSE THIS
-  voxelVolumes[7].scale = {10.0f, 1.0f, 5.0f};
-  voxelVolumes[7].SetTransform({0});
-
-  voxelVolumes[8].scale = {3.0f, 10.0f, 1.0f};
-  voxelVolumes[8].ResetGrid(MaterialType::GLASS);
-  voxelVolumes[8].SetTransform({0});
-
-  voxelVolumes[9].scale = {2.0f, 3.0f, 10.0f};
-  voxelVolumes[9].SetTransform({0});
-  //voxelVolumes[9].ResetGrid(MaterialType::GLASS);
-
-  voxelVolumes[10].scale = {7.0f, 1.0f, 1.0f};
-  voxelVolumes[10].SetTransform({0});
-  voxelVolumes[11].scale = {5.0f, 1.0f, 5.0f};
-  voxelVolumes[11].SetTransform({0});
-  //CHECKPOINT
-  voxelVolumes[12].scale = {2.0f};
-  //voxelVolumes[12].GenerateSomeSmoke(0.167f);
-  voxelVolumes[12].SetTransform({0});
-  voxelVolumes[12].ResetGrid(MaterialType::NONE);
   for (int i = 1; i < 5; i++)
   {
     voxelVolumes[i].ResetGrid(MaterialType::METAL_LOW);
   }
+
+  for (size_t i = 0; i < spotLights.size(); i++)
+  {
+    if (i >= 2)
+    {
+      spotLights[i].data.position = {
+        -3.0f, sinf((static_cast<float>(i))) + 1, -25.0f - static_cast<float>(i) * 2.0f
+      };
+      spotLights[i].data.direction = {1.0f, 0.0f, 0.0f};
+      spotLights[i].data.angle = CosDegrees(Rand(20.0f, 45.0f));
+      spotLights[i].data.color = {1.0f - RandomFloat(), RandomFloat(), RandomFloat()};
+    }
+
+    else
+    {
+      spotLights[i].data.position = {0.0f, 0.0f, -22.0f - static_cast<float>(i) * 3.0f};
+      spotLights[i].data.direction = {0.0f, 1.0f, 0.0f};
+    }
+  }
+  CreateBridgeBlind({0.0f, 0.0f, -17.0f}, {0.0f, -6.0f, 0.0f}, MaterialType::GLASS);
 }
 
 void Renderer::AddVoxelVolume()
@@ -1383,6 +1468,16 @@ void Renderer::CopyToPrevCamera()
   prevCamera.topNormal = camera.topNormal;
 }
 
+void Renderer::SetUpSecondZone()
+{
+  //area light dynamic voxels
+  voxelVolumes[3].GenerateSomeSmoke(0.167f);
+  materials[MaterialType::GLASS]->IOR = 1.0f;
+  materials[MaterialType::GLASS]->albedo = {.50f};
+
+  CreateBridgeBlind(float3{0, 0, triggerCheckpoint});
+}
+
 // -----------------------------------------------------------
 // Main application tick function - Executed once per frame
 // -----------------------------------------------------------
@@ -1421,7 +1516,7 @@ void Renderer::Tick(const float deltaTime)
   }
   //game logic
 
-  if (inLight)
+  if (inLight || IsKeyDown(GLFW_KEY_R))
   {
     player.RevertMovePlayer(voxelVolumes[0]);
     ResetAccumulator();
@@ -1438,7 +1533,7 @@ void Renderer::Tick(const float deltaTime)
       constexpr float offsetPlayer = 5.0f;
 
       camera.camPos = float3{camera.camPos.x, camera.camPos.y, checkOcclusion.O.z + offsetPlayer};
-      float3 intersectionPoint = checkOcclusion.IntersectionPoint();
+      const float3 intersectionPoint = checkOcclusion.IntersectionPoint();
       camera.camTarget = intersectionPoint;
       camera.HandleInput(0.0f);
       //reset level state load next chunk
@@ -1446,11 +1541,21 @@ void Renderer::Tick(const float deltaTime)
       player.MovePlayer(voxelVolumes[0], intersectionPoint, checkOcclusion.rayNormal);
       if (intersectionPoint.z < triggerCheckpoint && intersectionPoint.y < 0.5f)
       {
+        //next chunk loaded
         RandomizeSmokeColors();
-        triggerCheckpoint -= 20.0f;
-        voxelVolumes.erase(voxelVolumes.begin() + 1, voxelVolumes.end() - 3);
+        triggerCheckpoint -= 17.0f;
+        //first is always player
+        voxelVolumes.erase(voxelVolumes.begin() + 1, voxelVolumes.begin() + dataChunks[currentChunk++].elementsCount);
         triangles.clear();
-        voxelVolumes[3].GenerateSomeSmoke(0.167f);
+        switch (currentChunk)
+        {
+        case 1:
+          SetUpSecondZone();
+          break;
+        default:
+          break;
+        }
+
         player.SetPrevios(voxelVolumes[0]);
       }
       ResetAccumulator();

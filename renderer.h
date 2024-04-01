@@ -2,7 +2,13 @@
 
 namespace Tmpl8
 {
+  struct ChunkData
+  {
+    uint32_t elementsCount = 0;
+  };
+
   constexpr size_t MAX_LIGHT_TYPES = 4;
+  constexpr size_t CHUNK_COUNT = 4;
   //+1 for directional light
 
 
@@ -31,6 +37,10 @@ namespace Tmpl8
     void CreateTrianglePattern();
     void RemoveTriangle();
     void RemoveVoxelVolume();
+    void CreateBridge(const float3& offset, const float3& enterOffset = {0},
+                      MaterialType::MatType doorMaterial = MaterialType::GLASS);
+    void CreateBridgeBlind(const float3& offset, const float3& enterOffset = {0.0f, -6.0f, 0.0f},
+                           MaterialType::MatType doorMaterial = MaterialType::GLASS);
     void SetUpFirstZone();
     void AddVoxelVolume();
     void ShapesSetUp();
@@ -56,6 +66,7 @@ namespace Tmpl8
     bool IsValid(const float2& uv);
     void Update();
     void CopyToPrevCamera();
+    void SetUpSecondZone();
     void Tick(float deltaTime) override;
     float3 ApplyReinhardJodie(const float3& color);
     float GetLuminance(const float3& color);
@@ -157,6 +168,10 @@ namespace Tmpl8
     std::vector<Triangle> triangles;
     //the first one is the player
     std::vector<Scene> voxelVolumes;
+    //chunk data
+    std::array<ChunkData, CHUNK_COUNT> dataChunks = {10, 9, 9, 11};
+    size_t currentChunk = 0;
+
     bool activateSky = true;
 
     int matTypeSphere = MaterialType::SMOKE_LOW_DENSITY;

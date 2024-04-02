@@ -1760,10 +1760,10 @@ void Renderer::RemoveSpotLight()
 // -----------------------------------------------------------
 void Renderer::Shutdown()
 {
-  // save current camera
-  FILE* f = fopen("camera.bin", "wb");
-  fwrite(&camera, 1, sizeof(Camera), f);
-  fclose(f);
+  //// save current camera
+  //FILE* f = fopen("camera.bin", "wb");
+  //fwrite(&camera, 1, sizeof(Camera), f);
+  //fclose(f);
 }
 
 void Renderer::CalculateLightCount()
@@ -2441,72 +2441,72 @@ void Renderer::UI()
 {
   //formatted with chatGPT
   // ImGui begin
-  if (!ImGui::Begin("Debug Window"))
-  {
-    ImGui::End();
-    return;
-  }
+  //if (!ImGui::Begin("Debug Window"))
+  //{
+  //  ImGui::End();
+  //  return;
+  //}
 
-  ImGui::BeginTabBar("##TabBar");
+  //ImGui::BeginTabBar("##TabBar");
 
-  // First tab for Lights
-  if (ImGui::BeginTabItem("Lights"))
-  {
-    ImGui::BeginChild("Scrolling");
-
-
-    HandleImguiAreaLights();
+  //// First tab for Lights
+  //if (ImGui::BeginTabItem("Lights"))
+  //{
+  //  ImGui::BeginChild("Scrolling");
 
 
-    HandleImguiPointLights();
+  //  HandleImguiAreaLights();
 
 
-    HandleImguiSpotLights();
+  //  HandleImguiPointLights();
 
 
-    HandleImguiDirectionalLight();
+  //  HandleImguiSpotLights();
 
 
-    ImGui::EndChild();
-    ImGui::EndTabItem();
-  }
-
-  // Second tab for Materials
-  if (ImGui::BeginTabItem("Materials"))
-  {
-    ImGui::BeginChild("Scrolling");
-
-    HandleImguiMaterials();
-
-    ImGui::EndChild();
-    ImGui::EndTabItem();
-  }
-
-  // Third tab for Entities
-  if (ImGui::BeginTabItem("Entities"))
-  {
-    ImGui::BeginChild("Scrolling");
-
-    HandleImguiSpheres();
-
-    HandleImguiTriangles();
-
-    HandleImguiVoxelVolumes();
-
-    ImGui::EndChild();
-    ImGui::EndTabItem();
-  }
+  //  HandleImguiDirectionalLight();
 
 
-  if (ImGui::BeginTabItem("Camera"))
-  {
-    ImGui::BeginChild("Scrolling");
+  //  ImGui::EndChild();
+  //  ImGui::EndTabItem();
+  //}
 
-    HandleImguiCamera();
-    ImGui::EndChild();
-    ImGui::EndTabItem();
-  }
+  //// Second tab for Materials
+  //if (ImGui::BeginTabItem("Materials"))
+  //{
+  //  ImGui::BeginChild("Scrolling");
 
-  ImGui::EndTabBar();
-  ImGui::End();
+  //  HandleImguiMaterials();
+
+  //  ImGui::EndChild();
+  //  ImGui::EndTabItem();
+  //}
+
+  //// Third tab for Entities
+  //if (ImGui::BeginTabItem("Entities"))
+  //{
+  //  ImGui::BeginChild("Scrolling");
+
+  //  HandleImguiSpheres();
+
+  //  HandleImguiTriangles();
+
+  //  HandleImguiVoxelVolumes();
+
+  //  ImGui::EndChild();
+  //  ImGui::EndTabItem();
+  //}
+
+
+  //if (ImGui::BeginTabItem("Camera"))
+  //{
+  //  ImGui::BeginChild("Scrolling");
+
+  //  HandleImguiCamera();
+  //  ImGui::EndChild();
+  //  ImGui::EndTabItem();
+  //}
+
+  //ImGui::EndTabBar();
+  //ImGui::End();
 }

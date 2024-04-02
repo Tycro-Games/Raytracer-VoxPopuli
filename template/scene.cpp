@@ -528,6 +528,81 @@ void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_r
   delete[] buffer;
 }
 
+void Scene::LoadModelPartial(const char* filename, uint32_t columns, uint32_t thickness, uint32_t scene_read_flags)
+{
+  ResetGrid();
+  // open the file
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+  FILE* fp;
+  if (0 != fopen_s(&fp, filename, "rb"))
+    fp = 0;
+#else
+	FILE* fp = fopen(filename, "rb");
+#endif
+  if (!fp)
+    return;
+
+  // get the buffer size which matches the size of the file
+  fseek(fp, 0, SEEK_END);
+  const uint32_t buffer_size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  // load the file into a memory buffer
+  uint8_t* buffer = new uint8_t[buffer_size];
+  fread(buffer, buffer_size, 1, fp);
+  fclose(fp);
+
+  // construct the scene from the buffer
+  const auto scene = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->models[0];
+  const auto scenePallete = ogt_vox_read_scene_with_flags(buffer, buffer_size, scene_read_flags)->palette;
+  //created using chatgpt promts
+  // Assign colors based on the loaded scene
+  // Define scaling factors for each dimension
+  if (scene->size_x > GRIDSIZE)
+  {
+    // Modify scaleModel variables based on the comparison
+    scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
+    scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
+    scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+  }
+  //do stuff
+  for (uint32_t z = 0; z < scene->size_z; ++z)
+  {
+    for (uint32_t y = 0; y < scene->size_y; ++y)
+    {
+      for (uint32_t x = 0; x < scene->size_x; ++x)
+      {
+        // Calculate the scaled position
+        // Calculate the scaled position
+        const int scaledX = static_cast<int>((static_cast<float>(x) *
+          scaleModel.x));
+        const int scaledY = static_cast<int>(static_cast<float>(z) *
+          scaleModel.y);
+        const int scaledZ = static_cast<int>(static_cast<float>(y) *
+          scaleModel.z);
+
+
+        // Assume each voxel has a color index, and map that to MatType
+        // Calculate index into voxel_data based on the current position
+        const uint32_t index = x + y * scene->size_x + z * scene->size_x * scene->size_y;
+        // Access color index from voxel_data
+        uint8_t voxelColorIndex = scene->voxel_data[index];
+
+        if (voxelColorIndex == 0 || !(x >= columns - thickness && x <= columns + thickness))
+        {
+          continue;
+        }
+
+        const MaterialType::MatType materialIndex = static_cast<MaterialType::MatType>(voxelColorIndex);
+        Set(scaledX, scaledY, scaledZ, materialIndex);
+      }
+    }
+  }
+
+  // Cleanup
+  delete[] buffer;
+}
+
 void Scene::LoadModelRandomMaterials(const char* filename, uint32_t scene_read_flags)
 {
   ResetGrid();

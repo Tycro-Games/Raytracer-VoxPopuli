@@ -147,6 +147,7 @@ using namespace Tmpl8;
 #include "BVH/BasicBVH.h"
 //game
 #include "Game/PlayerCharacter.h"
+#include "Game/ModifyingProp.h"
 // fatal error reporting (with a pretty window)
 #define FATALERROR( fmt, ... ) FatalError( "Error on line %d of %s: " fmt "\n", __LINE__, __FILE__, ##__VA_ARGS__ )
 #define FATALERROR_IF( condition, fmt, ... ) do { if ( ( condition ) ) FATALERROR( fmt, ##__VA_ARGS__ ); } while ( 0 )
@@ -159,89 +160,89 @@ bool IsKeyDown(const uint key);
 // timer
 struct Timer
 {
-	Timer()
-	{
-		reseting();
-	}
+  Timer()
+  {
+    reseting();
+  }
 
-	float elapsed() const
-	{
-		chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
-		chrono::duration<double> time_span = chrono::duration_cast<chrono::duration<double>>(t2 - start);
-		return (float)time_span.count();
-	}
+  float elapsed() const
+  {
+    chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+    chrono::duration<double> time_span = chrono::duration_cast<chrono::duration<double>>(t2 - start);
+    return (float)time_span.count();
+  }
 
-	void reseting()
-	{
-		start = chrono::high_resolution_clock::now();
-	}
+  void reseting()
+  {
+    start = chrono::high_resolution_clock::now();
+  }
 
-	chrono::high_resolution_clock::time_point start;
+  chrono::high_resolution_clock::time_point start;
 };
 
 // Nils's jobmanager
 class Job
 {
 public:
-	virtual void Main() = 0;
+  virtual void Main() = 0;
 
 protected:
-	friend class JobThread;
-	void RunCodeWrapper();
+  friend class JobThread;
+  void RunCodeWrapper();
 };
 
 class InitRandomSeedThread : public Job
 {
 public:
-	void Main() override;
+  void Main() override;
 };
 
 class JobThread
 {
 public:
-	void CreateAndStartThread(unsigned int threadId);
-	void Go();
-	void BackgroundTask();
-	HANDLE m_GoSignal, m_ThreadHandle;
-	int m_ThreadID;
-	bool run = true;
+  void CreateAndStartThread(unsigned int threadId);
+  void Go();
+  void BackgroundTask();
+  HANDLE m_GoSignal, m_ThreadHandle;
+  int m_ThreadID;
+  bool run = true;
 };
 
 class JobManager // singleton class!
 {
 protected:
-	JobManager(unsigned int numThreads);
+  JobManager(unsigned int numThreads);
 
 public:
-	~JobManager();
-	static void CreateJobManager(unsigned int numThreads);
-	static JobManager* GetJobManager();
-	static void GetProcessorCount(uint& cores, uint& logical);
-	void AddJob2(Job* a_Job);
+  ~JobManager();
+  static void CreateJobManager(unsigned int numThreads);
+  static JobManager* GetJobManager();
+  static void GetProcessorCount(uint& cores, uint& logical);
+  void AddJob2(Job* a_Job);
 
-	unsigned int GetNumThreads() const
-	{
-		return m_NumThreads;
-	}
+  unsigned int GetNumThreads() const
+  {
+    return m_NumThreads;
+  }
 
-	void RunJobs();
-	void ThreadDone(unsigned int n);
+  void RunJobs();
+  void ThreadDone(unsigned int n);
 
-	int MaxConcurrent()
-	{
-		return m_NumThreads;
-	}
+  int MaxConcurrent()
+  {
+    return m_NumThreads;
+  }
 
 protected:
-	friend class JobThread;
-	Job* GetNextJob();
-	static JobManager* m_JobManager;
-	Job* m_JobList[4096];
-	CRITICAL_SECTION m_CS;
-	HANDLE m_ThreadDone[64];
-	unsigned int m_NumThreads, m_JobCount;
-	JobThread* m_JobThreadList;
-	bool run = true;
+  friend class JobThread;
+  Job* GetNextJob();
+  static JobManager* m_JobManager;
+  Job* m_JobList[4096];
+  CRITICAL_SECTION m_CS;
+  HANDLE m_ThreadDone[64];
+  unsigned int m_NumThreads, m_JobCount;
+  JobThread* m_JobThreadList;
+  bool run = true;
 };
 
 // forward declaration of helper functions
@@ -277,93 +278,93 @@ void cpuid( int info[4], int InfoType ) { __cpuid_count( InfoType, 0, info[0], i
 class CPUCaps // from https://github.com/Mysticial/FeatureDetector
 {
 public:
-	static inline bool HW_MMX = false;
-	static inline bool HW_x64 = false;
-	static inline bool HW_ABM = false;
-	static inline bool HW_RDRAND = false;
-	static inline bool HW_BMI1 = false;
-	static inline bool HW_BMI2 = false;
-	static inline bool HW_ADX = false;
-	static inline bool HW_PREFETCHWT1 = false;
-	// SIMD: 128-bit
-	static inline bool HW_SSE = false;
-	static inline bool HW_SSE2 = false;
-	static inline bool HW_SSE3 = false;
-	static inline bool HW_SSSE3 = false;
-	static inline bool HW_SSE41 = false;
-	static inline bool HW_SSE42 = false;
-	static inline bool HW_SSE4a = false;
-	static inline bool HW_AES = false;
-	static inline bool HW_SHA = false;
-	// SIMD: 256-bit
-	static inline bool HW_AVX = false;
-	static inline bool HW_XOP = false;
-	static inline bool HW_FMA3 = false;
-	static inline bool HW_FMA4 = false;
-	static inline bool HW_AVX2 = false;
-	// SIMD: 512-bit
-	static inline bool HW_AVX512F = false; //  AVX512 Foundation
-	static inline bool HW_AVX512CD = false; //  AVX512 Conflict Detection
-	static inline bool HW_AVX512PF = false; //  AVX512 Prefetch
-	static inline bool HW_AVX512ER = false; //  AVX512 Exponential + Reciprocal
-	static inline bool HW_AVX512VL = false; //  AVX512 Vector Length Extensions
-	static inline bool HW_AVX512BW = false; //  AVX512 Byte + Word
-	static inline bool HW_AVX512DQ = false; //  AVX512 Doubleword + Quadword
-	static inline bool HW_AVX512IFMA = false; //  AVX512 Integer 52-bit Fused Multiply-Add
-	static inline bool HW_AVX512VBMI = false; //  AVX512 Vector Byte Manipulation Instructions
-	// constructor
-	CPUCaps()
-	{
-		int info[4];
-		cpuid(info, 0);
-		int nIds = info[0];
-		cpuid(info, 0x80000000);
-		unsigned nExIds = info[0];
-		// detect Features
-		if (nIds >= 0x00000001)
-		{
-			cpuid(info, 0x00000001);
-			HW_MMX = (info[3] & ((int)1 << 23)) != 0;
-			HW_SSE = (info[3] & ((int)1 << 25)) != 0;
-			HW_SSE2 = (info[3] & ((int)1 << 26)) != 0;
-			HW_SSE3 = (info[2] & ((int)1 << 0)) != 0;
-			HW_SSSE3 = (info[2] & ((int)1 << 9)) != 0;
-			HW_SSE41 = (info[2] & ((int)1 << 19)) != 0;
-			HW_SSE42 = (info[2] & ((int)1 << 20)) != 0;
-			HW_AES = (info[2] & ((int)1 << 25)) != 0;
-			HW_AVX = (info[2] & ((int)1 << 28)) != 0;
-			HW_FMA3 = (info[2] & ((int)1 << 12)) != 0;
-			HW_RDRAND = (info[2] & ((int)1 << 30)) != 0;
-		}
-		if (nIds >= 0x00000007)
-		{
-			cpuid(info, 0x00000007);
-			HW_AVX2 = (info[1] & ((int)1 << 5)) != 0;
-			HW_BMI1 = (info[1] & ((int)1 << 3)) != 0;
-			HW_BMI2 = (info[1] & ((int)1 << 8)) != 0;
-			HW_ADX = (info[1] & ((int)1 << 19)) != 0;
-			HW_SHA = (info[1] & ((int)1 << 29)) != 0;
-			HW_PREFETCHWT1 = (info[2] & ((int)1 << 0)) != 0;
-			HW_AVX512F = (info[1] & ((int)1 << 16)) != 0;
-			HW_AVX512CD = (info[1] & ((int)1 << 28)) != 0;
-			HW_AVX512PF = (info[1] & ((int)1 << 26)) != 0;
-			HW_AVX512ER = (info[1] & ((int)1 << 27)) != 0;
-			HW_AVX512VL = (info[1] & ((int)1 << 31)) != 0;
-			HW_AVX512BW = (info[1] & ((int)1 << 30)) != 0;
-			HW_AVX512DQ = (info[1] & ((int)1 << 17)) != 0;
-			HW_AVX512IFMA = (info[1] & ((int)1 << 21)) != 0;
-			HW_AVX512VBMI = (info[2] & ((int)1 << 1)) != 0;
-		}
-		if (nExIds >= 0x80000001)
-		{
-			cpuid(info, 0x80000001);
-			HW_x64 = (info[3] & ((int)1 << 29)) != 0;
-			HW_ABM = (info[2] & ((int)1 << 5)) != 0;
-			HW_SSE4a = (info[2] & ((int)1 << 6)) != 0;
-			HW_FMA4 = (info[2] & ((int)1 << 16)) != 0;
-			HW_XOP = (info[2] & ((int)1 << 11)) != 0;
-		}
-	}
+  static inline bool HW_MMX = false;
+  static inline bool HW_x64 = false;
+  static inline bool HW_ABM = false;
+  static inline bool HW_RDRAND = false;
+  static inline bool HW_BMI1 = false;
+  static inline bool HW_BMI2 = false;
+  static inline bool HW_ADX = false;
+  static inline bool HW_PREFETCHWT1 = false;
+  // SIMD: 128-bit
+  static inline bool HW_SSE = false;
+  static inline bool HW_SSE2 = false;
+  static inline bool HW_SSE3 = false;
+  static inline bool HW_SSSE3 = false;
+  static inline bool HW_SSE41 = false;
+  static inline bool HW_SSE42 = false;
+  static inline bool HW_SSE4a = false;
+  static inline bool HW_AES = false;
+  static inline bool HW_SHA = false;
+  // SIMD: 256-bit
+  static inline bool HW_AVX = false;
+  static inline bool HW_XOP = false;
+  static inline bool HW_FMA3 = false;
+  static inline bool HW_FMA4 = false;
+  static inline bool HW_AVX2 = false;
+  // SIMD: 512-bit
+  static inline bool HW_AVX512F = false; //  AVX512 Foundation
+  static inline bool HW_AVX512CD = false; //  AVX512 Conflict Detection
+  static inline bool HW_AVX512PF = false; //  AVX512 Prefetch
+  static inline bool HW_AVX512ER = false; //  AVX512 Exponential + Reciprocal
+  static inline bool HW_AVX512VL = false; //  AVX512 Vector Length Extensions
+  static inline bool HW_AVX512BW = false; //  AVX512 Byte + Word
+  static inline bool HW_AVX512DQ = false; //  AVX512 Doubleword + Quadword
+  static inline bool HW_AVX512IFMA = false; //  AVX512 Integer 52-bit Fused Multiply-Add
+  static inline bool HW_AVX512VBMI = false; //  AVX512 Vector Byte Manipulation Instructions
+  // constructor
+  CPUCaps()
+  {
+    int info[4];
+    cpuid(info, 0);
+    int nIds = info[0];
+    cpuid(info, 0x80000000);
+    unsigned nExIds = info[0];
+    // detect Features
+    if (nIds >= 0x00000001)
+    {
+      cpuid(info, 0x00000001);
+      HW_MMX = (info[3] & ((int)1 << 23)) != 0;
+      HW_SSE = (info[3] & ((int)1 << 25)) != 0;
+      HW_SSE2 = (info[3] & ((int)1 << 26)) != 0;
+      HW_SSE3 = (info[2] & ((int)1 << 0)) != 0;
+      HW_SSSE3 = (info[2] & ((int)1 << 9)) != 0;
+      HW_SSE41 = (info[2] & ((int)1 << 19)) != 0;
+      HW_SSE42 = (info[2] & ((int)1 << 20)) != 0;
+      HW_AES = (info[2] & ((int)1 << 25)) != 0;
+      HW_AVX = (info[2] & ((int)1 << 28)) != 0;
+      HW_FMA3 = (info[2] & ((int)1 << 12)) != 0;
+      HW_RDRAND = (info[2] & ((int)1 << 30)) != 0;
+    }
+    if (nIds >= 0x00000007)
+    {
+      cpuid(info, 0x00000007);
+      HW_AVX2 = (info[1] & ((int)1 << 5)) != 0;
+      HW_BMI1 = (info[1] & ((int)1 << 3)) != 0;
+      HW_BMI2 = (info[1] & ((int)1 << 8)) != 0;
+      HW_ADX = (info[1] & ((int)1 << 19)) != 0;
+      HW_SHA = (info[1] & ((int)1 << 29)) != 0;
+      HW_PREFETCHWT1 = (info[2] & ((int)1 << 0)) != 0;
+      HW_AVX512F = (info[1] & ((int)1 << 16)) != 0;
+      HW_AVX512CD = (info[1] & ((int)1 << 28)) != 0;
+      HW_AVX512PF = (info[1] & ((int)1 << 26)) != 0;
+      HW_AVX512ER = (info[1] & ((int)1 << 27)) != 0;
+      HW_AVX512VL = (info[1] & ((int)1 << 31)) != 0;
+      HW_AVX512BW = (info[1] & ((int)1 << 30)) != 0;
+      HW_AVX512DQ = (info[1] & ((int)1 << 17)) != 0;
+      HW_AVX512IFMA = (info[1] & ((int)1 << 21)) != 0;
+      HW_AVX512VBMI = (info[2] & ((int)1 << 1)) != 0;
+    }
+    if (nExIds >= 0x80000001)
+    {
+      cpuid(info, 0x80000001);
+      HW_x64 = (info[3] & ((int)1 << 29)) != 0;
+      HW_ABM = (info[2] & ((int)1 << 5)) != 0;
+      HW_SSE4a = (info[2] & ((int)1 << 6)) != 0;
+      HW_FMA4 = (info[2] & ((int)1 << 16)) != 0;
+      HW_XOP = (info[2] & ((int)1 << 11)) != 0;
+    }
+  }
 };
 
 // helper function for conversion of f32 colors to int
@@ -378,10 +379,10 @@ inline uint RGBF32_to_RGB8(const float4* v)
 	b = _mm_packus_epi32(b, b);
 	return _mm_cvtsi128_si32(_mm_packus_epi16(b, b));
 #else
-	uint r = (uint)(255.0f * min(1.0f, v->x));
-	uint g = (uint)(255.0f * min(1.0f, v->y));
-	uint b = (uint)(255.0f * min(1.0f, v->z));
-	return (r << 16) + (g << 8) + b;
+  uint r = (uint)(255.0f * min(1.0f, v->x));
+  uint g = (uint)(255.0f * min(1.0f, v->y));
+  uint b = (uint)(255.0f * min(1.0f, v->z));
+  return (r << 16) + (g << 8) + b;
 #endif
 }
 
@@ -389,66 +390,66 @@ inline uint RGBF32_to_RGB8(const float4* v)
 class TheApp
 {
 public:
-	virtual void Init()
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void Init()
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void Tick(float deltaTime) = 0;
+  virtual void Tick(float deltaTime) = 0;
 
-	virtual void UI()
-	{
-		uiUpdated = false;
-	}
+  virtual void UI()
+  {
+    uiUpdated = false;
+  }
 
-	virtual void Shutdown()
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void Shutdown()
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void MouseUp(int /*button*/)
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void MouseUp(int /*button*/)
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void MouseDown(int /*button*/)
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void MouseDown(int /*button*/)
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void MouseMove(int /*x*/, int /*y*/)
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void MouseMove(int /*x*/, int /*y*/)
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void MouseWheel(float /*y*/)
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void MouseWheel(float /*y*/)
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void KeyUp(int /*key*/)
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void KeyUp(int /*key*/)
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	virtual void KeyDown(int /*key*/)
-	{
-		/* defined empty so we can omit it from the renderer */
-	}
+  virtual void KeyDown(int /*key*/)
+  {
+    /* defined empty so we can omit it from the renderer */
+  }
 
-	//static inline JobManager* jm = JobManager::GetJobManager();
-	Surface* screen = 0;
-	bool uiUpdated;
-	uint end_of_base_class = 99999;
+  //static inline JobManager* jm = JobManager::GetJobManager();
+  Surface* screen = 0;
+  bool uiUpdated;
+  uint end_of_base_class = 99999;
 };
 
 // dummy app, just here to calculate the size of the data added by derived classes
 class DummyApp : public TheApp
 {
 public:
-	void Tick()
-	{
-	}
+  void Tick()
+  {
+  }
 };
 
 #include "BVH/Shapes.h"

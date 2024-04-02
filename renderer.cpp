@@ -357,10 +357,10 @@ void Renderer::MaterialSetUp()
 {
   //first 5
   const auto materialDifWhite = make_shared<Material>(float3(1, 1, 1));
-  const auto materialDifRed = make_shared<Material>(float3(1, 0, 0));
-  const auto materialDifBlue = make_shared<Material>(float3(0, 0, 1));
+  const auto materialDifRed = make_shared<Material>(float3(1, 0, 0), 0.6f);
+  const auto materialDifBlue = make_shared<Material>(float3(0, 0, 1), 0.25f);
   const auto materialDifGreen = make_shared<Material>(float3(0, 1, 0), 0.0f);
-  const auto partialMetal = make_shared<Material>(float3(1, 1, 1), 0.75f);
+  const auto partialMetal = make_shared<Material>(float3(1.0f, .6f, .8f), 0.3f);
 
   //Mirror   next3
   const auto materialDifReflectivity = make_shared<Material>(float3(1));
@@ -502,12 +502,21 @@ void Renderer::CreateBridge(const float3& offset, const float3& enterOffset, Mat
 
   bridgesParts[2].scale = {2.0f, 3.0f, 10.0f};
   bridgesParts[2].SetTransform({0});
+  for (int i = 0; i < 5; i++)
+  {
+    if (i == 1)
+      continue;
+    bridgesParts[i].ResetGrid(
+      static_cast<MaterialType::MatType>(Rand(MaterialType::NON_METAL_WHITE, MaterialType::NON_METAL_PINK)));
+  }
   //voxelVolumes[9].ResetGrid(MaterialType::GLASS);
 
   bridgesParts[3].scale = {7.0f, 1.0f, 1.0f};
   bridgesParts[3].SetTransform({0});
   bridgesParts[4].scale = {5.0f, 1.0f, 5.0f};
   bridgesParts[4].SetTransform({0});
+  bridgesParts[4].
+    ResetGrid(static_cast<MaterialType::MatType>(Rand(MaterialType::METAL_HIGH, MaterialType::GLASS)));
 
   //add all up
   //CHECKPOINT
@@ -541,16 +550,25 @@ void Renderer::CreateBridgeBlind(const float3& offset, const float3& enterOffset
   bridgesParts[1].scale = {3.0f, 10.0f, 1.0f};
   bridgesParts[1].ResetGrid(doorMaterial);
   bridgesParts[1].SetTransform({0});
-
+  for (int i = 0; i < 7; i++)
+  {
+    if (i == 1 || i == 3)
+      continue;
+    bridgesParts[i].ResetGrid(
+      static_cast<MaterialType::MatType>(Rand(MaterialType::NON_METAL_WHITE, MaterialType::NON_METAL_PINK)));
+  }
   bridgesParts[2].scale = {2.0f, 3.0f, 10.0f};
   bridgesParts[2].SetTransform({00,});
   bridgesParts[2].ResetGrid(MaterialType::METAL_LOW);
+
   bridgesParts[3].scale = {2.0f, 3.0f, 10.0f};
   bridgesParts[3].SetTransform({0});
 
   //bridgesParts[4].ResetGrid(MaterialType::METAL_LOW);
   bridgesParts[4].scale = {7.0f, 1.0f, 1.0f};
   bridgesParts[4].SetTransform({0});
+  bridgesParts[4].
+    ResetGrid(static_cast<MaterialType::MatType>(Rand(MaterialType::METAL_HIGH, MaterialType::GLASS)));
 
 
   //voxelVolumes[9].ResetGrid(MaterialType::GLASS);
@@ -593,6 +611,7 @@ void Renderer::SetUpFirstZone()
   //setup
   voxelVolumes[0].LoadModel(*this, "assets/player.vox");
   voxelVolumes[0].SetTransform(float3{0});
+
   voxelVolumes[1].scale = {5.0f, 1.0f, 5.0f};
   voxelVolumes[1].SetTransform({0});
   voxelVolumes[2].scale = {5.0f, 5.0f, 5.0f};
@@ -645,6 +664,7 @@ void Renderer::ShapesSetUp()
 {
   //AddSphere();
   SetUpFirstZone();
+  SetUpSecondZone();
   /*constexpr int sizeX = 6;
   constexpr int sizeY = 1;
   constexpr int sizeZ = 2;
@@ -707,7 +727,7 @@ void Renderer::Init()
   //Material set-up
 
 
-  player.MovePlayer(voxelVolumes[0], float3{0}, float3{0, 1, 0});
+  player.MovePlayer(voxelVolumes[0], float3{0, 0, 0}, float3{0, 1, 0});
   player.SetPrevios(voxelVolumes[0]);
 }
 
@@ -1472,10 +1492,50 @@ void Renderer::SetUpSecondZone()
 {
   //area light dynamic voxels
   voxelVolumes[3].GenerateSomeSmoke(0.167f);
-  materials[MaterialType::GLASS]->IOR = 1.0f;
-  materials[MaterialType::GLASS]->albedo = {.50f};
-
+  //materials[MaterialType::GLASS]->IOR = 1.0f;
+  //materials[MaterialType::GLASS]->albedo = {.50f};
+  //spotLights.resize(0);
   CreateBridgeBlind(float3{0, 0, triggerCheckpoint});
+  //big plane
+  //7
+  //sphere emmsivie
+  std::vector<Scene> bridgesParts;
+  const float3 offset{0.0f, 0.0f, triggerCheckpoint - 24.0f};
+  const float3 enterOffset{0.0f, -6.0f, 0.0f};
+  bridgesParts.emplace_back(float3{0.0f, 4.0f, -7.0f} + offset + enterOffset, 1);
+  const float3 spherePos = {0.0f, 2.0f, 0.0f};
+  bridgesParts.emplace_back(float3{0.0f, 6.0f, 0.0f} + offset, 64);
+  bridgesParts.emplace_back(offset, 64);
+
+  spheres.emplace_back(float3{0.0f, 5.0f, -47.0f}, 0.6f, MaterialType::EMISSIVE);
+
+
+  //lights
+  areaLights.resize(1);
+  pointLights.resize(1);
+  areaLights[0].data.position = {-1.0f, 1.0f, -49.0f};
+  pointLights[0].data.position = {-1.0f, 1.0f, -49.0f};
+  CalculateLightCount();
+  //ground
+  bridgesParts[0].scale = {20.0f, 1.0f, 20.0f};
+  bridgesParts[0].SetTransform({0});
+  //sphere voxel
+  bridgesParts[1].ResetGrid(MaterialType::NONE);
+  bridgesParts[1].CreateEmmisiveSphere(MaterialType::METAL_LOW, 32.f);
+
+  bridgesParts[1].scale = {5.0f, 5.0f, 5.0f};
+  bridgesParts[1].SetTransform({0});
+
+  bridgesParts[2].scale = {5.0f};
+  bridgesParts[2].LoadModel(*this, "assets/monu2.vox");
+  bridgesParts[2].SetTransform({0});
+
+  voxelVolumes.insert(voxelVolumes.end(), bridgesParts.begin(), bridgesParts.end());
+  model = make_unique<ModifyingProp>(voxelVolumes[voxelVolumes.size() - 1]);
+
+  //emmsive sphere with area lights
+
+  //environment to hide in
 }
 
 // -----------------------------------------------------------
@@ -1521,8 +1581,15 @@ void Renderer::Tick(const float deltaTime)
     player.RevertMovePlayer(voxelVolumes[0]);
     ResetAccumulator();
   }
-
+  //add all for polymophism
   player.Update(deltaTime);
+  if (model.get())
+  {
+    model->Update(deltaTime);
+    if (model->GetUpdate())
+      ResetAccumulator();
+    //ResetAccumulator();
+  }
   if (player.UpdateInput() && IsKeyDown(GLFW_KEY_SPACE))
   {
     Ray checkOcclusion = player.GetRay();
@@ -1551,6 +1618,7 @@ void Renderer::Tick(const float deltaTime)
         {
         case 1:
           SetUpSecondZone();
+          triggerCheckpoint -= 20.0f;
           break;
         default:
           break;

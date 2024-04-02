@@ -189,5 +189,7 @@ namespace Tmpl8
     PlayerCharacter player;
     bool inLight = false;
     float triggerCheckpoint = -17.0f;
+    //modifying the environment
+    std::unique_ptr<ModifyingProp> model;
   };
 } // namespace Tmpl8

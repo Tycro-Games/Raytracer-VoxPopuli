@@ -166,6 +166,7 @@
   <ItemGroup>
     <ClCompile Include="src\BVH\BasicBVH.cpp" />
     <ClCompile Include="src\BVH\Shapes.cpp" />
+    <ClCompile Include="src\Game\ModifyingProp.cpp" />
     <ClCompile Include="src\Game\PlayerCharacter.cpp" />
     <ClCompile Include="src\Lighting\SkyDome.cpp" />
     <ClCompile Include="src\Lighting\SphereAreaLight.cpp" />
@@ -199,6 +200,7 @@
   <ItemGroup>
     <ClInclude Include="src\BVH\BasicBVH.h" />
     <ClInclude Include="src\BVH\Shapes.h" />
+    <ClInclude Include="src\Game\ModifyingProp.h" />
     <ClInclude Include="src\Game\PlayerCharacter.h" />
     <ClInclude Include="src\Lighting\SkyDome.h" />
     <ClInclude Include="src\Lighting\SphereAreaLight.h" />

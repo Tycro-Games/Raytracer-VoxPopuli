@@ -48,6 +48,7 @@
     <ClCompile Include="src\Lighting\SphereAreaLight.cpp" />
     <ClCompile Include="src\BVH\Shapes.cpp" />
     <ClCompile Include="src\Game\PlayerCharacter.cpp" />
+    <ClCompile Include="src\Game\ModifyingProp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="renderer.h" />
@@ -109,6 +110,7 @@
     <ClInclude Include="src\Lighting\SphereAreaLight.h" />
     <ClInclude Include="src\BVH\Shapes.h" />
     <ClInclude Include="src\Game\PlayerCharacter.h" />
+    <ClInclude Include="src\Game\ModifyingProp.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="template">

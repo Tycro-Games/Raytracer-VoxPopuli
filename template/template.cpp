@@ -52,6 +52,11 @@ bool IsKeyDown(const uint key)
   return keystate[key & 255] == 1;
 }
 
+void ExitGame()
+{
+  running = false;
+}
+
 // GLFW callbacks
 void InitRenderTarget(int w, int h)
 {

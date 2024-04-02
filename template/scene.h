@@ -221,7 +221,7 @@ namespace Tmpl8
     void GetCenter(const float3& centerCube);
     Scene(const float3& position, uint32_t worldSize = 64);
     void LoadModel(Renderer& scene, const char* filename, uint32_t scene_read_flags = 0);
-    void LoadModelPartial(const char* filename, uint32_t columns, uint32_t thickness = 13.0f,
+    void LoadModelPartial(const char* filename, uint32_t columns, uint32_t thickness = 13,
                           uint32_t scene_read_flags = 0);
     void LoadModelRandomMaterials(const char* filename, uint32_t scene_read_flags = 0);
     bool FindNearest(Ray& ray) const;

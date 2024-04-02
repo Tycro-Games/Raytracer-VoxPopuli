@@ -8,7 +8,7 @@ namespace Tmpl8
   };
 
   constexpr size_t MAX_LIGHT_TYPES = 4;
-  constexpr size_t CHUNK_COUNT = 4;
+  constexpr size_t CHUNK_COUNT = 3;
   //+1 for directional light
 
 
@@ -169,7 +169,7 @@ namespace Tmpl8
     //the first one is the player
     std::vector<Scene> voxelVolumes;
     //chunk data
-    std::array<ChunkData, CHUNK_COUNT> dataChunks = {10, 9, 9, 11};
+    std::array<ChunkData, CHUNK_COUNT> dataChunks = {10, 14, 9};
     size_t currentChunk = 0;
 
     bool activateSky = true;
@@ -190,6 +190,7 @@ namespace Tmpl8
     bool inLight = false;
     float triggerCheckpoint = -17.0f;
     //modifying the environment
-    std::unique_ptr<ModifyingProp> model;
+    std::array<std::unique_ptr<ModifyingProp>, 2> models;
+    Timer timer;
   };
 } // namespace Tmpl8

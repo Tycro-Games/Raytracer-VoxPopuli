@@ -156,6 +156,7 @@ using namespace Tmpl8;
 
 // global keystate array access
 bool IsKeyDown(const uint key);
+void ExitGame();
 
 // timer
 struct Timer

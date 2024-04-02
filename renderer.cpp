@@ -664,7 +664,8 @@ void Renderer::ShapesSetUp()
 {
   //AddSphere();
   SetUpFirstZone();
-  SetUpSecondZone();
+  //triggerCheckpoint -= 17;
+  //SetUpSecondZone();
   /*constexpr int sizeX = 6;
   constexpr int sizeY = 1;
   constexpr int sizeZ = 2;
@@ -871,7 +872,6 @@ int32_t Renderer::FindNearestPlayer(Ray& ray)
 {
   int32_t voxelIndex = -2;
 
-
   const int32_t voxelCount = static_cast<int32_t>(voxelVolumes.size());
   //skip player
   for (int32_t i = 1; i < voxelCount; i++)
@@ -916,7 +916,8 @@ int32_t Renderer::FindNearestPlayer(Ray& ray)
     backupRay.t = ray.t;
     backupRay.CopyToPrevRay(ray);
   }
-
+  if (currentChunk >= 2 && static_cast<uint32_t>(voxelIndex) > voxelVolumes.size() - 4)
+    voxelIndex = -1;
   return voxelIndex;
 }
 
@@ -1500,38 +1501,53 @@ void Renderer::SetUpSecondZone()
   //7
   //sphere emmsivie
   std::vector<Scene> bridgesParts;
-  const float3 offset{0.0f, 0.0f, triggerCheckpoint - 24.0f};
+  const float3 offset{-3.0f, 0.0f, triggerCheckpoint - 24.0f};
   const float3 enterOffset{0.0f, -6.0f, 0.0f};
   bridgesParts.emplace_back(float3{0.0f, 4.0f, -7.0f} + offset + enterOffset, 1);
-  const float3 spherePos = {0.0f, 2.0f, 0.0f};
-  bridgesParts.emplace_back(float3{0.0f, 6.0f, 0.0f} + offset, 64);
+  //hide
+
+  //metal wall end
+  bridgesParts.emplace_back(offset + float3{0, 0, -10}, 1);
+  bridgesParts.emplace_back(offset + float3{3, 0, -0}, 1);
+
   bridgesParts.emplace_back(offset, 64);
 
-  spheres.emplace_back(float3{0.0f, 5.0f, -47.0f}, 0.6f, MaterialType::EMISSIVE);
+  bridgesParts.emplace_back(offset + float3{2, 0, -4}, 64);
+  //bridgesParts.emplace_back(offset + float3{2, 0, -7}, 64);
+  spheres.emplace_back(float3{0.0f, 5.0f, -5.0f} + offset, 0.6f, MaterialType::EMISSIVE);
 
 
   //lights
   areaLights.resize(1);
   pointLights.resize(1);
-  areaLights[0].data.position = {-1.0f, 1.0f, -49.0f};
-  pointLights[0].data.position = {-1.0f, 1.0f, -49.0f};
+  areaLights[0].data.position = float3{-1.0f, 1.0f, -5.0f} + offset;
+  pointLights[0].data.position = float3{-1.0f, 1.0f, -5.0f} + offset;
   CalculateLightCount();
   //ground
-  bridgesParts[0].scale = {20.0f, 1.0f, 20.0f};
+  bridgesParts[0].scale = {15.0f, 1.0f, 20.0f};
   bridgesParts[0].SetTransform({0});
   //sphere voxel
-  bridgesParts[1].ResetGrid(MaterialType::NONE);
-  bridgesParts[1].CreateEmmisiveSphere(MaterialType::METAL_LOW, 32.f);
+  //hide behind environemnt
 
-  bridgesParts[1].scale = {5.0f, 5.0f, 5.0f};
+  bridgesParts[1].scale = {5.0f, 10.0f, 1.0f};
   bridgesParts[1].SetTransform({0});
-
-  bridgesParts[2].scale = {5.0f};
-  bridgesParts[2].LoadModel(*this, "assets/monu2.vox");
-  bridgesParts[2].SetTransform({0});
+  bridgesParts[1].ResetGrid(MaterialType::METAL_MID);
+  bridgesParts[2].scale = {2.0f, 3.0f, 2.0f};
+  bridgesParts[2].SetTransform({0,PI / 4, 0});
+  bridgesParts[2].ResetGrid(MaterialType::METAL_HIGH);
+  int32_t indexLast = 3;
+  bridgesParts[indexLast].scale = {5.0f};
+  bridgesParts[indexLast].LoadModel(*this, "assets/monu2.vox");
+  bridgesParts[indexLast].SetTransform({0.0f});
+  bridgesParts[indexLast + 1].scale = {7.5f, 5.0f, 5.0f};
+  bridgesParts[indexLast + 1].LoadModel(*this, "assets/monu2.vox");
+  bridgesParts[indexLast + 1].SetTransform({0.0f,PI / 2, 0.0f});
+  /*bridgesParts[indexLast + 2].scale = {5.0f};
+  bridgesParts[indexLast + 2].LoadModel(*this, "assets/monu2.vox");
+  bridgesParts[indexLast + 2].SetTransform({0.0f,PI / 2, 0.0f});*/
 
   voxelVolumes.insert(voxelVolumes.end(), bridgesParts.begin(), bridgesParts.end());
-  model = make_unique<ModifyingProp>(voxelVolumes[voxelVolumes.size() - 1]);
+
 
   //emmsive sphere with area lights
 
@@ -1583,13 +1599,22 @@ void Renderer::Tick(const float deltaTime)
   }
   //add all for polymophism
   player.Update(deltaTime);
-  if (model.get())
+  if (currentChunk >= 3)
   {
-    model->Update(deltaTime);
-    if (model->GetUpdate())
-      ResetAccumulator();
-    //ResetAccumulator();
+    if (timer.elapsed() > 10.0f)
+    {
+      ExitGame();
+    }
   }
+  if (currentChunk < 3)
+    for (auto& model : models)
+      if (model.get())
+      {
+        model->Update(deltaTime);
+        if (model->GetUpdate())
+          ResetAccumulator();
+        //ResetAccumulator();
+      }
   if (player.UpdateInput() && IsKeyDown(GLFW_KEY_SPACE))
   {
     Ray checkOcclusion = player.GetRay();
@@ -1612,14 +1637,42 @@ void Renderer::Tick(const float deltaTime)
         RandomizeSmokeColors();
         triggerCheckpoint -= 17.0f;
         //first is always player
-        voxelVolumes.erase(voxelVolumes.begin() + 1, voxelVolumes.begin() + dataChunks[currentChunk++].elementsCount);
+        if (currentChunk < 2)
+          voxelVolumes.erase(voxelVolumes.begin() + 1, voxelVolumes.begin() + dataChunks[currentChunk].elementsCount);
+        currentChunk++;
         triangles.clear();
         switch (currentChunk)
         {
         case 1:
+
           SetUpSecondZone();
-          triggerCheckpoint -= 20.0f;
+          triggerCheckpoint = -52.0f;
           break;
+        case 2:
+          for (uint32_t i = 0; i < models.size(); i++)
+            models[i] = make_unique<ModifyingProp>(voxelVolumes[voxelVolumes.size() - 1 - i], 0.9f, 16,
+                                                   16);
+          voxelVolumes[6].GenerateSomeSmoke(.167f);
+          triggerCheckpoint = -71;
+          break;
+        case 3:
+          {
+            //win game
+            float3 lastPos = {0.0f, 3.0f, -75.0f};
+            timer.reseting();
+            Scene textWin = Scene{
+              lastPos, 32
+            };
+            camera.camPos = float3{camera.camPos.x, camera.camPos.y, checkOcclusion.O.z + offsetPlayer};
+            camera.camTarget = lastPos;
+            camera.HandleInput(0.0f);
+            player.MovePlayer(voxelVolumes[0], lastPos, float3{0.0f, 1.0f, 0.0f});
+
+            textWin.LoadModelRandomMaterials("assets/textWin.vox");
+            textWin.scale = {10};
+            textWin.SetTransform({0.0f, 0, 0.0f});
+            voxelVolumes.emplace_back(textWin);
+          }
         default:
           break;
         }

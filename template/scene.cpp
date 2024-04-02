@@ -1015,7 +1015,7 @@ bool Scene::IsOccluded(Ray& ray) const
   while (s.t < ray.t)
   {
     const auto cell = grid[GetVoxel(s.X, s.Y, s.Z)];
-    if (cell < MaterialType::GLASS) /* we hit a solid voxel */ return s.t < ray.t;
+    if (cell != MaterialType::NONE) /* we hit a solid voxel */ return s.t < ray.t;
     if (s.tmax.x < s.tmax.y)
     {
       if (s.tmax.x < s.tmax.z)

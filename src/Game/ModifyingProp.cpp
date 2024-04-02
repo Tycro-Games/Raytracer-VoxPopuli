@@ -1,8 +1,8 @@
 ﻿#include "precomp.h"
 #include "ModifyingProp.h"
 
-ModifyingProp::ModifyingProp(Scene& scene, float time, uint32_t startingIndex)
-  : toChange(time), voxelVolume(scene), index(startingIndex)
+ModifyingProp::ModifyingProp(Scene& scene, float time, uint32_t startingIndex, uint32_t increasingRate)
+  : toChange(time), voxelVolume(scene), increaseRate(increasingRate), index(startingIndex)
 
 {
   timer = make_unique<Timer>();
@@ -14,10 +14,10 @@ void ModifyingProp::Update(float /*deltaTime*/)
   {
     timer->reseting();
     //voxelVolume.ResetGrid();
-    voxelVolume.LoadModelPartial("assets/monu2.vox", index);
-    index += 13;
+    voxelVolume.LoadModelPartial("assets/monu2.vox", index, increaseRate);
+    index += increaseRate;
     if (index > 64)
-      index = 13;
+      index = increaseRate;
   }
 }
 

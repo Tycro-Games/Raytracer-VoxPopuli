@@ -1535,7 +1535,7 @@ void Renderer::SetUpSecondZone()
   bridgesParts[2].scale = {2.0f, 3.0f, 2.0f};
   bridgesParts[2].SetTransform({0,PI / 4, 0});
   bridgesParts[2].ResetGrid(MaterialType::METAL_HIGH);
-  int32_t indexLast = 3;
+  const int32_t indexLast = 3;
   bridgesParts[indexLast].scale = {5.0f};
   bridgesParts[indexLast].LoadModel(*this, "assets/monu2.vox");
   bridgesParts[indexLast].SetTransform({0.0f});
@@ -1563,7 +1563,7 @@ void Renderer::Tick(const float deltaTime)
 
   if (staticCamera)
   {
-    if (!IsKeyDown(GLFW_KEY_SPACE))
+    if (IsKeyDown((GLFW_KEY_RIGHT_SHIFT)))
       if (camera.HandleInput(deltaTime))
       {
         ResetAccumulator();
@@ -1601,7 +1601,7 @@ void Renderer::Tick(const float deltaTime)
   player.Update(deltaTime);
   if (currentChunk >= 3)
   {
-    if (timer.elapsed() > 10.0f)
+    if (timer.elapsed() > 5.0f)
     {
       ExitGame();
     }
@@ -1615,7 +1615,7 @@ void Renderer::Tick(const float deltaTime)
           ResetAccumulator();
         //ResetAccumulator();
       }
-  if (player.UpdateInput() && IsKeyDown(GLFW_KEY_SPACE))
+  if (player.UpdateInput() && !IsKeyDown(GLFW_KEY_RIGHT_SHIFT))
   {
     Ray checkOcclusion = player.GetRay();
     if (FindNearestPlayer(checkOcclusion) > 0 && checkOcclusion.t < player.GetDistance())
@@ -1658,7 +1658,7 @@ void Renderer::Tick(const float deltaTime)
         case 3:
           {
             //win game
-            float3 lastPos = {0.0f, 3.0f, -75.0f};
+            const float3 lastPos = {0.0f, 3.0f, -75.0f};
             timer.reseting();
             Scene textWin = Scene{
               lastPos, 32

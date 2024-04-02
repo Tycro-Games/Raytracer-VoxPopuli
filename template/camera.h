@@ -176,6 +176,6 @@ namespace Tmpl8
     const float stopAngle = 0.9f;
     float focalDistance{1.0f};
     float focalTargetDistance{1.0f};
-    float defocusJitter{0};
+    float defocusJitter{2.0f};
   };
 }

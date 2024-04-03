@@ -1,0 +1,4 @@
+Controls:
+WASD - move
+
+R - to reset to nearest checkpoint

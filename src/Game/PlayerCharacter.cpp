@@ -56,7 +56,7 @@ bool PlayerCharacter::UpdateInput()
     return false;
 
   bool IsMoving = false;
-  angle = 0.0f;                                                         
+  angle = 0.0f;
 
   if (IsKeyDown(GLFW_KEY_W))
   {
@@ -153,9 +153,6 @@ void PlayerCharacter::MovePlayer(Scene& volume, const float3& position, const fl
   moving->reseting();
 }
 
-void PlayerCharacter::Update(const float /*delta_time*/)
-{
-}
 
 void PlayerCharacter::RevertMovePlayer(Scene& volume)
 {

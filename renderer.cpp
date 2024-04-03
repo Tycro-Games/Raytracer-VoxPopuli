@@ -1598,7 +1598,7 @@ void Renderer::Tick(const float deltaTime)
     ResetAccumulator();
   }
   //add all for polymophism
-  player.Update(deltaTime);
+  //player.Update(deltaTime);
   if (currentChunk >= 3)
   {
     if (timer.elapsed() > 5.0f)

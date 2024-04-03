@@ -14,7 +14,7 @@ public:
   bool UpdateInput();
   void SetPrevios(Scene& volume);
   void MovePlayer(Scene& volume, const float3& position, const float3& _up);
-  void Update(const float delta_time);
+
   void RevertMovePlayer(Scene& volume);
 
 private:

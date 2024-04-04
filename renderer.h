@@ -7,6 +7,33 @@ namespace Tmpl8
     uint32_t elementsCount = 0;
   };
 
+  struct AlbedoIlluminationData
+  {
+    float3 albedo = {1};
+    float3 illumination = {0};
+
+    float3 GetColor() const
+    {
+      return albedo * illumination;
+    }
+  };
+
+  struct RayDataReproject
+  {
+    float3 intersectionPoint; //12
+    float3 normal; //12
+    float t; //4
+    MaterialType::MatType materialIndex; //1
+
+    uint8_t dummy; //1
+    uint16_t dummy1; //2
+    //32 bytes !
+    static RayDataReproject GetRayInfo(const Ray& ray)
+    {
+      return {ray.IntersectionPoint(), ray.rayNormal, ray.t, ray.indexMaterial, 0, 0};
+    }
+  };
+
   constexpr size_t MAX_LIGHT_TYPES = 4;
   constexpr size_t CHUNK_COUNT = 3;
   //+1 for directional light
@@ -47,6 +74,10 @@ namespace Tmpl8
     // game flow methods
     void Init() override;
     void Illumination(Ray& ray, float3& incLight);
+    bool IsOccludedPrevFrame(const float3& intersectionP) const;
+    float3 SampleHistory(const float2& uvCoordinate);
+
+    void ClampHistory(float3& historySample, float3 newSample, const int2& currentPixel);
     static float3 Reflect(float3 direction, float3 normal);
     static float3 Refract(float3 direction, float3 normal, float IORRatio);
     __m128 FastReciprocal(__m128& x);
@@ -56,6 +87,14 @@ namespace Tmpl8
     int32_t FindNearest(Ray& ray);
     int32_t FindNearestPlayer(Ray& ray);
     float3 Trace(Ray& ray, int depth);
+    AlbedoIlluminationData TraceMetal(Ray& ray, int depth);
+    AlbedoIlluminationData TraceNonMetal(Ray& ray, int depth);
+    AlbedoIlluminationData TraceDialectric(Ray& ray, int depth, int32_t voxIndex);
+    AlbedoIlluminationData TraceSmoke(Ray& ray, int depth, int32_t voxIndex);
+    AlbedoIlluminationData TraceEmmision(Ray& ray);
+    AlbedoIlluminationData TraceModelMaterials(Ray& ray, int depth);
+    AlbedoIlluminationData GetValue(Ray& ray, int depth, int32_t voxIndex);
+    AlbedoIlluminationData TraceReproject(Ray& ray, int depth);
     static float SchlickReflectance(float cosine, float indexOfRefraction);
     float3 Absorption(const float3& color, float intensity, float distanceTraveled);
     float SchlickReflectanceNonMetal(const float cosine);
@@ -64,6 +103,7 @@ namespace Tmpl8
     float4 SamplePreviousFrameColor(const float2& screenPosition);
     float4 BlendColor(const float4& currentColor, const float4& previousColor, float blendFactor);
     bool IsValid(const float2& uv);
+    bool IsValidScreen(const float2& uv);
     void Update();
     void CopyToPrevCamera();
     void SetUpSecondZone();
@@ -103,6 +143,7 @@ namespace Tmpl8
     void MouseDown(int button) override;
 
     float3 SampleSky(const float3& direction) const;
+    AlbedoIlluminationData SampleSkyReproject(const float3& direction) const;
 
     //void MouseMove(int x, int y) override
     //{
@@ -133,7 +174,7 @@ namespace Tmpl8
     int2 mousePos;
     int32_t maxBounces = 14;
     float weight = .10f;
-    bool staticCamera = true;
+    bool staticCamera = false;
     float4* accumulator;
 
 
@@ -192,5 +233,14 @@ namespace Tmpl8
     //modifying the environment
     std::array<std::unique_ptr<ModifyingProp>, 2> models;
     Timer timer;
+    Timer staticCameraTimer;
+    float timeToReactivate = 2.0f;
+
+    //reprojection
+    std::array<float3, SCRWIDTH * SCRHEIGHT> illuminationBuffer;
+    std::array<float3, SCRWIDTH * SCRHEIGHT> albedoBuffer;
+    std::array<float3, SCRWIDTH * SCRHEIGHT> illuminationHistoryBuffer;
+    std::array<float3, SCRWIDTH * SCRHEIGHT> tempIlluminationBuffer;
+    std::array<RayDataReproject, SCRWIDTH * SCRHEIGHT> rayData;
   };
 } // namespace Tmpl8

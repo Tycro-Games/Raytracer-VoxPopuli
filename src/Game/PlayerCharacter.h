@@ -22,14 +22,12 @@ private:
   float3 direction;
   float3 origin{0};
   float distance{3};
-  std::unique_ptr<Timer> moving;
+  std::unique_ptr<Timer> movingTimer;
   float timeToMove = .10f;
   quat rotation{0, 0, 0, 0};
   quat prevRotation{0, 0, 0, 0};
   float angle;
-  float prevAngle;
   float3 prevOrigin{0};
   float3 prevUp{0};
   float3 prevPosition{0};
-  float3 oppositePrevDirection{0};
 };

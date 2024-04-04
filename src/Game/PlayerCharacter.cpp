@@ -5,7 +5,7 @@
 
 PlayerCharacter::PlayerCharacter(): direction(0, 0, -1), angle(0)
 {
-  moving = make_unique<Timer>();
+  movingTimer = make_unique<Timer>();
 }
 
 Ray PlayerCharacter::GetRay() const
@@ -52,7 +52,7 @@ void PlayerCharacter::SetRotation()
 
 bool PlayerCharacter::UpdateInput()
 {
-  if (moving->elapsed() < timeToMove)
+  if (movingTimer->elapsed() < timeToMove)
     return false;
 
   bool IsMoving = false;
@@ -150,7 +150,7 @@ void PlayerCharacter::MovePlayer(Scene& volume, const float3& position, const fl
   volume.SetTransformPlayer(rotation.toMatrix());
 
 
-  moving->reseting();
+  movingTimer->reseting();
 }
 
 
@@ -163,5 +163,5 @@ void PlayerCharacter::RevertMovePlayer(Scene& volume)
   volume.SetTransformPlayer(prevRotation.toMatrix());
 
 
-  moving->reseting();
+  movingTimer->reseting();
 }

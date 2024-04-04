@@ -10,5 +10,5 @@ struct PointLightData
 struct PointLight
 {
   //float3 Evaluate(Ray& ray, Scene& scene) override;
-  PointLightData data{{0.5f, 0.5f, .50f}, {1}};
+  PointLightData data{{0.5f, 0.5f, 3.50f}, {1}};
 };

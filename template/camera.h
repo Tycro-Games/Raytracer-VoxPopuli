@@ -3,6 +3,8 @@
 // default screen resolution
 #define SCRWIDTH	256
 #define SCRHEIGHT	212
+#define HALFAPIXELW	1.0f/SCRWIDTH/2.0f
+#define HALFAPIXELH	1.0f/SCRHEIGHT/2.0f
 // #define FULLSCREEN
 #define DOUBLESIZE
 
@@ -16,9 +18,9 @@ namespace Tmpl8
       // setup a basic view frustum
       camPos = float3(0, 0, -2);
       camTarget = float3(0, 0, -1);
-      topLeft = float3(-aspect, 1, 0);
-      topRight = float3(aspect, 1, 0);
-      bottomLeft = float3(-aspect, -1, 0);
+      topLeft = float3(-ASPECT, 1, 0);
+      topRight = float3(ASPECT, 1, 0);
+      bottomLeft = float3(-ASPECT, -1, 0);
       ahead = normalize(camTarget - camPos);
     }
 
@@ -50,8 +52,8 @@ namespace Tmpl8
     void SetFrustumNormals()
     {
       // View pyramid directions
-      const float3 leftFrustumDirection{(2 * ahead) - (aspect * right)};
-      const float3 rightFrustumDirection{(2 * ahead) + (aspect * right)};
+      const float3 leftFrustumDirection{(2 * ahead) - (ASPECT * right)};
+      const float3 rightFrustumDirection{(2 * ahead) + (ASPECT * right)};
       const float3 topFrustumDirection{(2 * ahead) + up};
       const float3 bottomFrustumDirection{(2 * ahead) - up};
 
@@ -101,7 +103,7 @@ namespace Tmpl8
     bool HandleInput(const float t)
     {
       if (!WindowHasFocus()) return false;
-      float speed = 0.0025f * t;
+      float speed = 0.0075f * t;
       if (IsKeyDown(GLFW_KEY_LEFT_SHIFT))
         speed /= 2;
       if (IsKeyDown(GLFW_KEY_LEFT_ALT)) speed = 0.0f;
@@ -161,14 +163,14 @@ namespace Tmpl8
       ahead = normalize(camTarget - camPos);
       up = normalize(cross(ahead, right));
       right = normalize(cross(up, ahead));
-      topLeft = camPos + 2 * ahead - aspect * right + up;
-      topRight = camPos + 2 * ahead + aspect * right + up;
-      bottomLeft = camPos + 2 * ahead - aspect * right - up;
+      topLeft = camPos + 2 * ahead - ASPECT * right + up;
+      topRight = camPos + 2 * ahead + ASPECT * right + up;
+      bottomLeft = camPos + 2 * ahead - ASPECT * right - up;
       if (!changed) return false;
       return true;
     }
 
-    static constexpr float aspect = static_cast<float>(SCRWIDTH) / static_cast<float>(SCRHEIGHT);
+    static constexpr float ASPECT = static_cast<float>(SCRWIDTH) / static_cast<float>(SCRHEIGHT);
     float3 ahead, right, up;
     float3 camPos, camTarget;
     float3 topLeft, topRight, bottomLeft;

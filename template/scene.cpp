@@ -232,17 +232,17 @@ void Scene::GenerateSomeNoise(float frequency = 0.03f)
 
 
   // Create an array of floats to store the noise output in
-  std::vector<float> noiseOutput(GRIDSIZE3);
-  fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
+  std::vector<float> noiseOutput(gridsize3);
+  fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, worldsize, worldsize, worldsize, frequency, RandomUInt());
 
 
-  for (uint32_t z = 0; z < WORLDSIZE; z++)
+  for (uint32_t z = 0; z < worldsize; z++)
   {
-    for (uint32_t y = 0; y < WORLDSIZE; y++)
+    for (uint32_t y = 0; y < worldsize; y++)
     {
-      for (uint32_t x = 0; x < WORLDSIZE; x++)
+      for (uint32_t x = 0; x < worldsize; x++)
       {
-        const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+        const float n = noiseOutput[x + y * worldsize + z * worldsize * worldsize];
         // Sample noise from pre-generated vector
         MaterialType::MatType color = MaterialType::NONE;
 
@@ -291,32 +291,32 @@ void Scene::GenerateSomeSmoke(float frequency = 0.001f)
   const auto fnFractal = FastNoise::New<FastNoise::FractalFBm>();
 
   // Create an array of floats to store the noise output in
-  std::vector<float> noiseOutput(GRIDSIZE3);
-  fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, WORLDSIZE, WORLDSIZE, WORLDSIZE, frequency, RandomUInt());
+  std::vector<float> noiseOutput(gridsize3);
+  fnPerlin->GenUniformGrid3D(noiseOutput.data(), 0, 0, 0, worldsize, worldsize, worldsize, frequency, RandomUInt());
 
 
-  for (uint32_t z = 0; z < WORLDSIZE; z++)
+  for (uint32_t z = 0; z < worldsize; z++)
   {
-    for (uint32_t y = 0; y < WORLDSIZE; y++)
+    for (uint32_t y = 0; y < worldsize; y++)
     {
-      for (uint32_t x = 0; x < WORLDSIZE; x++)
+      for (uint32_t x = 0; x < worldsize; x++)
       {
-        const float n = noiseOutput[x + y * WORLDSIZE + z * WORLDSIZE * WORLDSIZE];
+        const float n = noiseOutput[x + y * worldsize + z * worldsize * worldsize];
         MaterialType::MatType color = MaterialType::NONE;
         const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
 
         const float3 center{
-          static_cast<float>(WORLDSIZE) / 2.0f, static_cast<float>(WORLDSIZE) / 2.0f,
-          static_cast<float>(WORLDSIZE) / 2.0f
+          static_cast<float>(worldsize) / 2.0f, static_cast<float>(worldsize) / 2.0f,
+          static_cast<float>(worldsize) / 2.0f
         };
 
         //Elipse like shape
-        const float randomX = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
-                                                      static_cast<float>(WORLDSIZE) / 2.0f);
-        const float randomZ = WORLDSIZE / 2.0f + Rand(-static_cast<float>(WORLDSIZE) / 4.0f,
-                                                      static_cast<float>(WORLDSIZE) / 2.0f);
+        const float randomX = worldsize / 2.0f + Rand(-static_cast<float>(worldsize) / 4.0f,
+                                                      static_cast<float>(worldsize) / 2.0f);
+        const float randomZ = worldsize / 2.0f + Rand(-static_cast<float>(worldsize) / 4.0f,
+                                                      static_cast<float>(worldsize) / 2.0f);
         const float3 dimensions{
-          randomX, WORLDSIZE / 3.0f,
+          randomX, worldsize / 3.0f,
           randomZ
         };
 
@@ -428,13 +428,13 @@ void Scene::SetTransformPlayer(const mat4& _rotation)
   invMatrix = (translateToPivot * rot * _scale * translateBack).Inverted();
 }
 
-Scene::Scene(const float3& position, const uint32_t worldSize) : WORLDSIZE(worldSize), GRIDSIZE(worldSize),
-                                                                 GRIDSIZE2(worldSize * worldSize),
-                                                                 GRIDSIZE3(worldSize * worldSize * worldSize)
+Scene::Scene(const float3& position, const uint32_t worldSize) : worldsize(worldSize), gridsize(worldSize),
+                                                                 gridsize2(worldSize * worldSize),
+                                                                 gridsize3(worldSize * worldSize * worldSize)
 
 {
   //sets the cube
-  grid.resize(GRIDSIZE3);
+  grid.resize(gridsize3);
   SetCubeBoundaries(position);
   ResetGrid(MaterialType::NON_METAL_PINK);
   // initialize the mainScene using Perlin noise, parallel over z
@@ -476,12 +476,12 @@ void Scene::LoadModel(Renderer& renderer, const char* filename, uint32_t scene_r
   //created using chatgpt promts
   // Assign colors based on the loaded scene
   // Define scaling factors for each dimension
-  if (scene->size_x > GRIDSIZE)
+  if (scene->size_x > gridsize)
   {
     // Modify scaleModel variables based on the comparison
-    scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
-    scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
-    scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+    scaleModel.x *= static_cast<float>(gridsize) / static_cast<float>(scene->size_x);
+    scaleModel.y *= static_cast<float>(gridsize) / static_cast<float>(scene->size_y);
+    scaleModel.z *= static_cast<float>(gridsize) / static_cast<float>(scene->size_z);
   }
   //do stuff
   for (uint32_t z = 0; z < scene->size_z; ++z)
@@ -558,12 +558,12 @@ void Scene::LoadModelPartial(const char* filename, uint32_t columns, uint32_t th
   //created using chatgpt promts
   // Assign colors based on the loaded scene
   // Define scaling factors for each dimension
-  if (scene->size_x > GRIDSIZE)
+  if (scene->size_x > gridsize)
   {
     // Modify scaleModel variables based on the comparison
-    scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
-    scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
-    scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+    scaleModel.x *= static_cast<float>(gridsize) / static_cast<float>(scene->size_x);
+    scaleModel.y *= static_cast<float>(gridsize) / static_cast<float>(scene->size_y);
+    scaleModel.z *= static_cast<float>(gridsize) / static_cast<float>(scene->size_z);
   }
   //do stuff
   for (uint32_t z = 0; z < scene->size_z; ++z)
@@ -633,12 +633,12 @@ void Scene::LoadModelRandomMaterials(const char* filename, uint32_t scene_read_f
   //created using chatgpt promts
   // Assign colors based on the loaded scene
   // Define scaling factors for each dimension
-  if (scene->size_x > GRIDSIZE)
+  if (scene->size_x > gridsize)
   {
     // Modify scaleModel variables based on the comparison
-    scaleModel.x *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_x);
-    scaleModel.y *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_y);
-    scaleModel.z *= static_cast<float>(GRIDSIZE) / static_cast<float>(scene->size_z);
+    scaleModel.x *= static_cast<float>(gridsize) / static_cast<float>(scene->size_x);
+    scaleModel.y *= static_cast<float>(gridsize) / static_cast<float>(scene->size_y);
+    scaleModel.z *= static_cast<float>(gridsize) / static_cast<float>(scene->size_z);
   }
   //do stuff
   for (uint32_t z = 0; z < scene->size_z; ++z)
@@ -688,13 +688,13 @@ void Scene::CreateEmmisiveSphere(MaterialType::MatType mat, float radiusEmissive
   //based on Lynn's implementation
   // When looping over (x, y, z) during scene creation
 
-  const float worldCenter{(static_cast<float>(WORLDSIZE) / 2.0f)};
+  const float worldCenter{(static_cast<float>(worldsize) / 2.0f)};
 
-  for (uint32_t z = 0; z < WORLDSIZE; ++z)
+  for (uint32_t z = 0; z < worldsize; ++z)
   {
-    for (uint32_t y = 0; y < WORLDSIZE; ++y)
+    for (uint32_t y = 0; y < worldsize; ++y)
     {
-      for (uint32_t x = 0; x < WORLDSIZE; ++x)
+      for (uint32_t x = 0; x < worldsize; ++x)
       {
         const float3 point{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
         const float distanceSquared{length(worldCenter - point)}; // Distance from the center of the world
@@ -732,14 +732,14 @@ bool Scene::Setup3DDDA(Ray& ray, DDAState& state) const
   //expressed in world space
   const float3 voxelMinBounds = cube.b[0];
   const float3 voxelMaxBounds = cube.b[1] - cube.b[0];
-  const auto gridsizeFloat = static_cast<float>(GRIDSIZE);
+  const auto gridsizeFloat = static_cast<float>(gridsize);
   const float cellSize = 1.0f / gridsizeFloat;
   state.step = make_int3(1 - ray.Dsign * 2);
   //based on our cube position
   const float3 posInGrid = gridsizeFloat * ((ray.O - voxelMinBounds) + (state.t + 0.00005f) * ray.D) /
     voxelMaxBounds;
   const float3 gridPlanes = (ceilf(posInGrid) - ray.Dsign) * cellSize;
-  const int3 P = clamp(make_int3(posInGrid), 0, GRIDSIZE - 1);
+  const int3 P = clamp(make_int3(posInGrid), 0, gridsize - 1);
   state.X = P.x, state.Y = P.y, state.Z = P.z;
   state.tdelta = cellSize * float3(state.step) * ray.rD;
   state.tmax = ((gridPlanes * voxelMaxBounds) - (ray.O - voxelMinBounds)) * ray.rD;
@@ -765,7 +765,7 @@ bool Scene::FindNearest(Ray& ray) const
     {
       ray.t = s.t;
 
-      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.rayNormal = ray.GetNormalVoxel(worldsize, matrix);
 
       ray.indexMaterial = cell;
       return true;
@@ -775,13 +775,13 @@ bool Scene::FindNearest(Ray& ray) const
       if (s.tmax.x < s.tmax.z)
       {
         s.t = s.tmax.x, s.X += s.step.x;
-        if (s.X >= GRIDSIZE) break;
+        if (s.X >= gridsize) break;
         s.tmax.x += s.tdelta.x;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -790,13 +790,13 @@ bool Scene::FindNearest(Ray& ray) const
       if (s.tmax.y < s.tmax.z)
       {
         s.t = s.tmax.y, s.Y += s.step.y;
-        if (s.Y >= GRIDSIZE) break;
+        if (s.Y >= gridsize) break;
         s.tmax.y += s.tdelta.y;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -827,7 +827,7 @@ bool Scene::FindNearestExcept(Ray& ray, MaterialType::MatType lowerBound, Materi
     {
       ray.t = s.t;
 
-      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.rayNormal = ray.GetNormalVoxel(worldsize, matrix);
 
       ray.indexMaterial = cell;
       return true;
@@ -837,13 +837,13 @@ bool Scene::FindNearestExcept(Ray& ray, MaterialType::MatType lowerBound, Materi
       if (s.tmax.x < s.tmax.z)
       {
         s.t = s.tmax.x, s.X += s.step.x;
-        if (s.X >= GRIDSIZE) break;
+        if (s.X >= gridsize) break;
         s.tmax.x += s.tdelta.x;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -852,13 +852,13 @@ bool Scene::FindNearestExcept(Ray& ray, MaterialType::MatType lowerBound, Materi
       if (s.tmax.y < s.tmax.z)
       {
         s.t = s.tmax.y, s.Y += s.step.y;
-        if (s.Y >= GRIDSIZE) break;
+        if (s.Y >= gridsize) break;
         s.tmax.y += s.tdelta.y;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -890,7 +890,7 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
     if (cell != matType)
     {
       ray.t = s.t;
-      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.rayNormal = ray.GetNormalVoxel(worldsize, matrix);
       ray.indexMaterial = cell;
       return true;
     }
@@ -899,13 +899,13 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
       if (s.tmax.x < s.tmax.z)
       {
         s.t = s.tmax.x, s.X += s.step.x;
-        if (s.X >= GRIDSIZE) break;
+        if (s.X >= gridsize) break;
         s.tmax.x += s.tdelta.x;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -914,13 +914,13 @@ bool Scene::FindMaterialExit(Ray& ray, MaterialType::MatType matType) const
       if (s.tmax.y < s.tmax.z)
       {
         s.t = s.tmax.y, s.Y += s.step.y;
-        if (s.Y >= GRIDSIZE) break;
+        if (s.Y >= gridsize) break;
         s.tmax.y += s.tdelta.y;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -957,7 +957,7 @@ bool Scene::FindSmokeExit(Ray& ray) const
     {
       ray.t = s.t;
 
-      ray.rayNormal = ray.GetNormalVoxel(WORLDSIZE, matrix);
+      ray.rayNormal = ray.GetNormalVoxel(worldsize, matrix);
       ray.indexMaterial = cell;
       return true;
     }
@@ -966,13 +966,13 @@ bool Scene::FindSmokeExit(Ray& ray) const
       if (s.tmax.x < s.tmax.z)
       {
         s.t = s.tmax.x, s.X += s.step.x;
-        if (s.X >= GRIDSIZE) break;
+        if (s.X >= gridsize) break;
         s.tmax.x += s.tdelta.x;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -981,13 +981,13 @@ bool Scene::FindSmokeExit(Ray& ray) const
       if (s.tmax.y < s.tmax.z)
       {
         s.t = s.tmax.y, s.Y += s.step.y;
-        if (s.Y >= GRIDSIZE) break;
+        if (s.Y >= gridsize) break;
         s.tmax.y += s.tdelta.y;
       }
       else
       {
         s.t = s.tmax.z, s.Z += s.step.z;
-        if (s.Z >= GRIDSIZE) break;
+        if (s.Z >= gridsize) break;
         s.tmax.z += s.tdelta.z;
       }
     }
@@ -1020,12 +1020,12 @@ bool Scene::IsOccluded(Ray& ray) const
     {
       if (s.tmax.x < s.tmax.z)
       {
-        if ((s.X += s.step.x) >= GRIDSIZE) return false;
+        if ((s.X += s.step.x) >= gridsize) return false;
         s.t = s.tmax.x, s.tmax.x += s.tdelta.x;
       }
       else
       {
-        if ((s.Z += s.step.z) >= GRIDSIZE) return false;
+        if ((s.Z += s.step.z) >= gridsize) return false;
         s.t = s.tmax.z, s.tmax.z += s.tdelta.z;
       }
     }
@@ -1033,12 +1033,12 @@ bool Scene::IsOccluded(Ray& ray) const
     {
       if (s.tmax.y < s.tmax.z)
       {
-        if ((s.Y += s.step.y) >= GRIDSIZE) return false;
+        if ((s.Y += s.step.y) >= gridsize) return false;
         s.t = s.tmax.y, s.tmax.y += s.tdelta.y;
       }
       else
       {
-        if ((s.Z += s.step.z) >= GRIDSIZE) return false;
+        if ((s.Z += s.step.z) >= gridsize) return false;
         s.t = s.tmax.z, s.tmax.z += s.tdelta.z;
       }
     }

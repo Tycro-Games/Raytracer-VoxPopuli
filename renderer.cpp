@@ -68,7 +68,7 @@
 void Renderer::InitMultithreading()
 {
 #ifdef 	PROFILE
-	SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
+  SetThreadAffinityMask(GetCurrentThread(), 1ULL << (std::thread::hardware_concurrency() - 1));
 #endif
 
   const auto numThreads = thread::hardware_concurrency();
@@ -92,7 +92,8 @@ void Renderer::InitMultithreading()
 
 void Renderer::SetUpLights()
 {
-  pointLights.resize(0);
+  pointLights.resize(1);
+
   spotLights.resize(5);
   areaLights.resize(0);
   CalculateLightCount();
@@ -686,7 +687,6 @@ void Renderer::ShapesSetUp()
 
 void Renderer::Init()
 {
-  CopyToPrevCamera();
   int skyBpp;
   skyPixels = stbi_loadf("assets/sky_19.hdr", &skyWidth, &skyHeight, &skyBpp, 0);
   /* for (int i = 0; i < skyWidth * skyHeight * 3; i++)
@@ -707,6 +707,9 @@ void Renderer::Init()
     fread(&camera, 1, sizeof(Camera), f);
     fclose(f);
   }
+  camera.SetFrustumNormals();
+  CopyToPrevCamera();
+
   //init multithreading
   InitMultithreading();
   vertIterator.resize(SCRHEIGHT);
@@ -758,6 +761,153 @@ void Renderer::Illumination(Ray& ray, float3& incLight)
   }
 
   incLight *= static_cast<float>(lightCount);
+}
+
+//Daria showed me how to do this
+bool Renderer::IsOccludedPrevFrame(const float3& intersectionP) const
+{
+  const float3 directionTo = intersectionP - prevCamera.camPos;
+  float3 dirNormalised = normalize(directionTo);
+  const float3 pos = OffsetRay(intersectionP, -dirNormalised);
+  Ray occlusion = {prevCamera.camPos, dirNormalised, length(pos - prevCamera.camPos)};
+  return IsOccluded(occlusion);
+}
+
+//bilinear interpolation  from Daria
+float3 Renderer::SampleHistory(const float2& uvCoordinate)
+{
+  float2 uv{uvCoordinate};
+  static constexpr float halfPixelWidth = (1.0f / SCRWIDTH) / 2.0f;
+  static constexpr float halfPixelHeight = (1.0f / SCRHEIGHT) / 2.0f;
+  //to the corner
+  uv.x -= halfPixelWidth;
+  uv.y -= halfPixelHeight;
+
+  const float2 point = {uv.x * SCRWIDTH, uv.y * SCRHEIGHT};
+
+  const int2 topLeft{
+    static_cast<int>(point.x), static_cast<int>(point.y)
+  };
+  const int2 topRight = {topLeft.x + 1, topLeft.y};
+  const int2 botLeft = {topLeft.x, topLeft.y + 1};
+  const int2 botRight = {topLeft.x + 1, topLeft.y + 1};
+
+  const float2 fractionalPart = point - topLeft;
+  const float2 fractionalPart2 = 1 - fractionalPart;
+
+  const bool topLValid = IsValidScreen(topLeft);
+  const bool topRValid = IsValidScreen(topRight);
+  const bool botLValid = IsValidScreen(botLeft);
+  const bool botRValid = IsValidScreen(botRight);
+
+
+  float weight1 = topLValid ? fractionalPart2.x * fractionalPart2.y : 0.0f;
+  float weight2 = topRValid ? fractionalPart.x * fractionalPart2.y : 0.0f;
+  float weight3 = botLValid ? fractionalPart2.x * fractionalPart.y : 0.0f;
+  float weight4 = botRValid ? fractionalPart.x * fractionalPart.y : 0.0f;
+
+  const float totalWeight = weight1 + weight2 + weight3 + weight4;
+  const float reciprocalTotalWeight = 1.0f / totalWeight;
+
+  weight1 *= reciprocalTotalWeight;
+  weight2 *= reciprocalTotalWeight;
+  weight3 *= reciprocalTotalWeight;
+  weight4 *= reciprocalTotalWeight;
+
+  float3 averageColor{0.0f};
+  if (topLValid)
+    averageColor += weight1 * illuminationHistoryBuffer[topLeft.y * SCRWIDTH + topLeft.x];
+  if (topRValid)
+    averageColor += weight2 * illuminationHistoryBuffer[topRight.y * SCRWIDTH + topRight.x];
+
+  if (botLValid)
+    averageColor += weight3 * illuminationHistoryBuffer[botLeft.y * SCRWIDTH + botLeft.x];
+
+  if (botRValid)
+    averageColor += weight4 * illuminationHistoryBuffer[botRight.y * SCRWIDTH + botRight.x];
+
+
+  return averageColor;
+}
+
+// [CREDITS] https://www.shadertoy.com/view/4dSBDt
+inline float3 RGBToYCoCg(const float3& RGB)
+{
+  const float Y{dot(RGB, float3{1, 2, 1}) * 0.25f};
+  const float Co{dot(RGB, float3{2, 0, -2}) * 0.25f + (0.5f * 256.0f / 255.0f)};
+  const float Cg{dot(RGB, float3{-1, 2, -1}) * 0.25f + (0.5f * 256.0f / 255.0f)};
+  return {Y, Co, Cg};
+}
+
+// [CREDITS] https://www.shadertoy.com/view/4dSBDt
+inline float3 YCoCgToRGB(const float3& YCoCg)
+{
+  const float Y{YCoCg.x};
+  const float Co{YCoCg.y - (0.5f * 256.0f / 255.0f)};
+  const float Cg{YCoCg.z - (0.5f * 256.0f / 255.0f)};
+  const float R{Y + Co - Cg};
+  const float G{Y + Cg};
+  const float B{Y - Co - Cg};
+  return {R, G, B};
+}
+
+// from Lynn
+
+
+void Renderer::ClampHistory(float3& historySample, float3 newSample, const int2& currentPixel)
+{
+  const int2 offsets[]
+  {
+    {-1, -1}, {0, -1}, {1, -1},
+    {-1, 0}, {1, 0},
+    {-1, 1}, {0, 1}, {1, 1}
+  };
+  // Convert to YCoCg
+  newSample = RGBToYCoCg(newSample);
+  historySample = RGBToYCoCg(historySample);
+
+  uint numValidPixels{1};
+  float3 colorAvg{newSample};
+  float3 colorVar{newSample * newSample};
+
+  // Go over the pixels surrounding the current pixel
+  for (size_t i{0}; i < size(offsets); i++)
+  {
+    // If the adjacent pixel is valid (on-screen)
+    const int2 pixel{currentPixel + offsets[i]};
+    if (IsValidScreen(pixel))
+    {
+      // Add up its value (converted to YCoCg)
+      const float3 fetch{RGBToYCoCg(illuminationBuffer[pixel.x + pixel.y * SCRWIDTH])};
+      colorAvg += fetch;
+      colorVar += fetch * fetch;
+
+      numValidPixels++;
+    }
+  }
+  // Get the average between the valid pixels
+  const float inverseNumValidPixels{1.0f / static_cast<float>(numValidPixels)};
+  colorAvg *= inverseNumValidPixels;
+  colorVar *= inverseNumValidPixels;
+
+  // Calculate the minimum and maximum color
+  constexpr float gColorBoxSigma{0.75f};
+  const float3 sigma{
+    sqrt(max(0.0f, colorVar.x - (colorAvg.x * colorAvg.x))),
+    sqrt(max(0.0f, colorVar.y - (colorAvg.y * colorAvg.y))),
+    sqrt(max(0.0f, colorVar.z - (colorAvg.z * colorAvg.z)))
+  };
+  const float3 colorMin{colorAvg - gColorBoxSigma * sigma};
+  const float3 colorMax{colorAvg + gColorBoxSigma * sigma};
+
+  // Clamp the history sample
+  historySample = clamp(historySample, colorMin, colorMax);
+
+  // Convert back
+  historySample = YCoCgToRGB(historySample);
+
+  // Make sure history sample is still valid after color clamping and conversion
+  historySample = max(historySample, 0.0f);
 }
 
 
@@ -815,7 +965,7 @@ int32_t Renderer::FindNearest(Ray& ray)
     //for my machine the fast reciprocal is a bit slower
 
 #if 0
-		__m128 rDSSE = SlowReciprocal(ray.D4);
+    __m128 rDSSE = SlowReciprocal(ray.D4);
 #else
     __m128 rDSSE = FastReciprocal(ray.D4);
 
@@ -826,13 +976,13 @@ int32_t Renderer::FindNearest(Ray& ray)
     ray.rD4 = rDSSE;
 
 #else
-		ray.O = TransformPosition(ray.O, invMat);
+    ray.O = TransformPosition(ray.O, invMat);
 
 
-		ray.D = TransformVector(ray.D, invMat);
+    ray.D = TransformVector(ray.D, invMat);
 
-		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
-		ray.Dsign = ray.ComputeDsign(ray.D);
+    ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+    ray.Dsign = ray.ComputeDsign(ray.D);
 #endif
 
     if (voxelVolumes[i].FindNearest(ray))
@@ -889,7 +1039,7 @@ int32_t Renderer::FindNearestPlayer(Ray& ray)
     //for my machine the fast reciprocal is a bit slower
 
 #if 0
-		__m128 rDSSE = SlowReciprocal(ray.D4);
+    __m128 rDSSE = SlowReciprocal(ray.D4);
 #else
     __m128 rDSSE = FastReciprocal(ray.D4);
 
@@ -900,13 +1050,13 @@ int32_t Renderer::FindNearestPlayer(Ray& ray)
     ray.rD4 = rDSSE;
 
 #else
-		ray.O = TransformPosition(ray.O, invMat);
+    ray.O = TransformPosition(ray.O, invMat);
 
 
-		ray.D = TransformVector(ray.D, invMat);
+    ray.D = TransformVector(ray.D, invMat);
 
-		ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
-		ray.Dsign = ray.ComputeDsign(ray.D);
+    ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+    ray.Dsign = ray.ComputeDsign(ray.D);
 #endif
 
     if (voxelVolumes[i].FindNearestExcept(ray, MaterialType::SMOKE_LOW_DENSITY, MaterialType::SMOKE_PLAYER))
@@ -1095,7 +1245,7 @@ float3 Renderer::Trace(Ray& ray, int depth)
         /*if (voxIndex == 0)
         {
           float3 incLight{0};
-
+  
           Illumination(ray, incLight);
           float threshold = 25.1f;
           if (sqrLength(incLight) > threshold)
@@ -1174,7 +1324,275 @@ float3 Renderer::Trace(Ray& ray, int depth)
     Ray newRay;
 
     newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
-    return Trace(newRay, depth - 1) * GetAlbedo(ray.indexMaterial) + incLight;
+    return (Trace(newRay, depth - 1) + incLight) * GetAlbedo(ray.indexMaterial);
+  }
+}
+
+AlbedoIlluminationData Renderer::TraceMetal(Ray& ray, int depth)
+{
+  const float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
+  Ray newRay = Ray{
+    OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
+    reflectedDirection + GetRoughness(ray.indexMaterial) * RandomSphereSample()
+  };
+  const float3 illumination{TraceReproject(newRay, depth - 1).GetColor()};
+  const AlbedoIlluminationData record{GetAlbedo(ray.indexMaterial), illumination};
+  return record;
+}
+
+AlbedoIlluminationData Renderer::TraceNonMetal(Ray& ray, int depth)
+{
+  Ray newRay;
+  float3 illumination{0};
+  float3 albedo{0};
+  if (RandomFloat() > SchlickReflectanceNonMetal(dot(-ray.D, ray.rayNormal)))
+  {
+    float3 incLight{0};
+    const float3 randomDirection = RandomLambertianReflectionVector(ray.rayNormal);
+    Illumination(ray, incLight);
+    newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
+    illumination += incLight;
+    illumination += TraceReproject(newRay, depth - 1).GetColor();
+    albedo = GetAlbedo(ray.indexMaterial);
+  }
+  else
+  {
+    const float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
+    newRay = Ray{
+      OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
+      reflectedDirection + GetRoughness(ray.indexMaterial) * RandomSphereSample()
+    };
+    illumination = TraceReproject(newRay, depth - 1).GetColor();
+    albedo = {1};
+  }
+  return {albedo, illumination};
+}
+
+AlbedoIlluminationData Renderer::TraceDialectric(Ray& ray, int depth, int32_t voxIndex)
+{
+  float3 color{1.0f};
+  //code for glass
+  bool isInGlass = ray.isInsideGlass;
+  const float IORMaterial = GetRefractivity(ray.indexMaterial); //1.45
+  //get the IOR
+  const float refractionRatio = isInGlass ? IORMaterial : 1.0f / IORMaterial;
+  //we need to get to the next voxel
+  bool isInsideVolume = true;
+  if (isInGlass)
+  {
+    color = GetAlbedo(ray.indexMaterial);
+    //only the first one has glass
+    Ray backupRay = ray;
+
+    const mat4 invMat = voxelVolumes[voxIndex].invMatrix;
+    ray.O = TransformPosition(ray.O, invMat);
+
+
+    ray.D = TransformVector(ray.D, invMat);
+
+    ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+    ray.Dsign = ray.ComputeDsign(ray.D);
+
+    isInsideVolume = voxelVolumes[voxIndex].FindMaterialExit(ray, MaterialType::GLASS);
+    backupRay.t = ray.t;
+    backupRay.CopyToPrevRay(ray);
+  }
+  if (!isInsideVolume)
+  {
+    ray.O = ray.O + ray.D * ray.t;
+    ray.t = 0;
+  }
+
+  const float cosTheta = min(dot(-ray.D, ray.rayNormal), 1.0f);
+  const float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+  const bool cannotRefract = refractionRatio * sinTheta > 1.0f;
+
+  float3 resultingDirection;
+
+  //this may be negative if we refract
+  float3 resultingNormal;
+  if (cannotRefract || SchlickReflectance(cosTheta, refractionRatio) > RandomFloat())
+  {
+    //reflect!
+    resultingDirection = Reflect(ray.D, ray.rayNormal);
+    resultingNormal = ray.rayNormal;
+  }
+  else
+  {
+    //we are exiting or entering the glass
+    resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
+    isInGlass = !isInGlass;
+    resultingNormal = -ray.rayNormal;
+  }
+  Ray newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
+  newRay.isInsideGlass = isInGlass;
+
+
+  return {
+    color, TraceReproject(newRay, depth - 1).GetColor()
+  };
+}
+
+AlbedoIlluminationData Renderer::TraceSmoke(Ray& ray, int depth, int32_t voxIndex)
+{
+  float3 color{1.0f};
+  //code for glass
+  bool isInGlass = ray.isInsideGlass;
+  //float IORMaterial = ray.GetRefractivity(*this); //1.45
+  //get the IOR
+  const float refractionRatio = 1.0f;
+  //we need to get to the next voxel
+  bool isInsideVolume = true;
+  float intensity = 0;
+  float distanceTraveled = 0;
+  //player
+  if (voxIndex == 0)
+  {
+    float3 incLight{0};
+
+    Illumination(ray, incLight);
+    const float sqrThreshold = 16.0f;
+    const float value = sqrLength(incLight);
+    if (value > sqrThreshold)
+    {
+      inLight = true;
+      std::cout << "Player is in the light\n";
+    }
+  }
+  if (isInGlass)
+  {
+    intensity = GetEmissive(ray.indexMaterial);
+    color = GetAlbedo(ray.indexMaterial);
+
+    //only the first one has glass
+    Ray backupRay = ray;
+
+    const mat4 invMat = voxelVolumes[voxIndex].invMatrix;
+    ray.O = TransformPosition(ray.O, invMat);
+
+
+    ray.D = TransformVector(ray.D, invMat);
+
+    ray.rD = float3(1 / ray.D.x, 1 / ray.D.y, 1 / ray.D.z);
+    ray.Dsign = ray.ComputeDsign(ray.D);
+    isInsideVolume = voxelVolumes[voxIndex].FindSmokeExit(ray);
+    backupRay.t = ray.t;
+    backupRay.CopyToPrevRay(ray);
+    distanceTraveled = ray.t;
+  }
+  //simple density functions
+  const float threshold = RandomFloat() * 100 - intensity;
+  if (RandomFloat() * distanceTraveled > threshold)
+  {
+    ray.O = ray.O + ray.D * Rand(ray.t * .45f, ray.t);
+
+    ray.D = RandomDirection();
+    ray.t = 0;
+  }
+  color = Absorption(color, intensity, distanceTraveled);
+
+  if (!isInsideVolume)
+  {
+    ray.O = ray.O + ray.D * ray.t;
+    ray.t = 0;
+  }
+
+  //this may be negative if we refract
+
+
+  const float3 resultingDirection = Refract(ray.D, ray.rayNormal, refractionRatio);
+  isInGlass = !isInGlass;
+  const float3 resultingNormal = -ray.rayNormal;
+
+  Ray newRay = {OffsetRay(ray.IntersectionPoint(), resultingNormal), resultingDirection};
+  newRay.isInsideGlass = isInGlass;
+
+
+  return {color, TraceReproject(newRay, depth - 1).GetColor()};
+}
+
+AlbedoIlluminationData Renderer::TraceEmmision(Ray& ray)
+{
+  return {GetAlbedo(ray.indexMaterial) * GetEmissive(ray.indexMaterial), float3{1}};
+}
+
+AlbedoIlluminationData Renderer::TraceModelMaterials(Ray& ray, int depth)
+{
+  float3 incLight{0};
+  const float3 randomDirection = DiffuseReflection(ray.rayNormal);
+  Illumination(ray, incLight);
+
+  Ray newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
+  float3 illumination = incLight;
+  illumination += TraceReproject(newRay, depth - 1).GetColor();
+  return {GetAlbedo(ray.indexMaterial), illumination};
+}
+
+//this method is mostly inspired by Lynn explanations about reprojection
+AlbedoIlluminationData Renderer::TraceReproject(Ray& ray, int depth)
+{
+  if (depth < 0)
+  {
+    return {0.0f, 0};
+  }
+  //Find nearest BVH
+
+  const int32_t voxIndex = FindNearest(ray);
+  //return { 0 };
+
+  //evaluate materials and trace again for reflections and refraction
+
+  // Break early if no intersection
+  if (ray.indexMaterial == MaterialType::NONE)
+  {
+    return SampleSkyReproject(ray.D);
+  }
+
+  //return .5f * (ray.rayNormal + 1);
+
+
+  switch (ray.indexMaterial)
+  {
+  //metals
+  case MaterialType::METAL_MID:
+  case MaterialType::METAL_HIGH:
+  case MaterialType::METAL_LOW:
+    {
+      return TraceMetal(ray, depth);
+    }
+  //non-metal
+
+  case MaterialType::NON_METAL_WHITE:
+  case MaterialType::NON_METAL_PINK:
+  case MaterialType::NON_METAL_RED:
+  case MaterialType::NON_METAL_BLUE:
+  case MaterialType::NON_METAL_GREEN:
+    {
+      return TraceNonMetal(ray, depth);
+    }
+  //mostly based on Ray tracing in one weekend
+  case MaterialType::GLASS:
+    {
+      return TraceDialectric(ray, depth, voxIndex);
+    }
+  case MaterialType::SMOKE_LOW_DENSITY:
+  case MaterialType::SMOKE_LOW2_DENSITY:
+  case MaterialType::SMOKE_MID_DENSITY:
+  case MaterialType::SMOKE_MID2_DENSITY:
+  case MaterialType::SMOKE_HIGH_DENSITY:
+  case MaterialType::SMOKE_PLAYER:
+    {
+      return TraceSmoke(ray, depth, voxIndex);
+    }
+  case MaterialType::EMISSIVE:
+    return TraceEmmision(ray);
+
+  //random materials from the models
+  default:
+    {
+      return TraceModelMaterials(ray, depth);
+    }
   }
 }
 
@@ -1231,6 +1649,11 @@ bool Renderer::IsValid(const float2& uv)
   return uv.x >= 0.0f && uv.x < 1.0f && uv.y >= 0.0f && uv.y < 1.0f;
 }
 
+bool Renderer::IsValidScreen(const float2& uv)
+{
+  return uv.x >= 0.0f && uv.x < SCRWIDTH && uv.y >= 0.0f && uv.y < SCRHEIGHT;
+}
+
 
 void Renderer::Update()
 {
@@ -1244,8 +1667,8 @@ void Renderer::Update()
   static __m256 antiAliasingStrengthSSE = _mm256_set1_ps(antiAliasingStrength);
 
 #ifdef PROFILE
-	for (int32_t y = 0; y < SCRHEIGHT; y++)
-	{
+  for (int32_t y = 0; y < SCRHEIGHT; y++)
+  {
 #else
 
   for_each(execution::par, vertIterator.begin(), vertIterator.end(),
@@ -1438,40 +1861,40 @@ void Renderer::Update()
 
              //avx2 
 #else
-		const uint32_t pitch = y * SCRWIDTH;
-		const float invWeight = 1.0f - weight;
+      const uint32_t pitch = y * SCRWIDTH;
+      const float invWeight = 1.0f - weight;
 
-		for (uint32_t x = 0; x < SCRWIDTH; x++)
-		{
-			float3 newPixel{0};
-
-
-			//AA
-			const float randomXDir = RandomFloat() * antiAliasingStrength;
-			const float randomYDir = RandomFloat() * antiAliasingStrength;
+      for (uint32_t x = 0; x < SCRWIDTH; x++)
+      {
+        float3 newPixel{ 0 };
 
 
-			Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
-			                                      static_cast<float>(y) + randomYDir);
-
-			//get new pixel
-			newPixel = Trace(primaryRay, maxBounces);
-			float4 pixel = newPixel;
+        //AA
+        const float randomXDir = RandomFloat() * antiAliasingStrength;
+        const float randomYDir = RandomFloat() * antiAliasingStrength;
 
 
-			pixel = BlendColor(pixel, accumulator[x + pitch], invWeight);
+        Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x) + randomXDir,
+          static_cast<float>(y) + randomYDir);
 
-			//display
-			accumulator[x + pitch] = pixel;
+        //get new pixel
+        newPixel = Trace(primaryRay, maxBounces);
+        float4 pixel = newPixel;
 
-			pixel = ApplyReinhardJodie(pixel);
 
-			screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
-		}
+        pixel = BlendColor(pixel, accumulator[x + pitch], invWeight);
+
+        //display
+        accumulator[x + pitch] = pixel;
+
+        pixel = ApplyReinhardJodie(pixel);
+
+        screen->pixels[x + pitch] = RGBF32_to_RGB8(&pixel);
+      }
 #endif
 
 #ifdef PROFILE
-	}
+      }
 #else
            });
 #endif
@@ -1482,6 +1905,7 @@ void Renderer::Update()
 void Renderer::CopyToPrevCamera()
 {
   prevCamera.camPos = camera.camPos;
+
 
   prevCamera.bottomNormal = camera.bottomNormal;
   prevCamera.leftNormal = camera.leftNormal;
@@ -1568,8 +1992,6 @@ void Renderer::Tick(const float deltaTime)
       {
         ResetAccumulator();
       }
-    camera.SetFrustumNormals();
-
     // pixel loop
 
     //DOF from Remi
@@ -1582,19 +2004,128 @@ void Renderer::Tick(const float deltaTime)
 
 
     Update();
-
-
-    CopyToPrevCamera();
   }
-  //reproject
+  //reprojection, got helped from Daria and Lynn
   else
   {
-  }
-  //game logic
+    if (IsKeyDown((GLFW_KEY_RIGHT_SHIFT)))
+      camera.HandleInput(deltaTime);
 
+
+    for_each(execution::par, vertIterator.begin(), vertIterator.end(),
+             [this](const int32_t y)
+             {
+               const uint32_t pitch = y * SCRWIDTH;
+               for (uint32_t x = 0; x < SCRWIDTH; x++)
+               {
+                 Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x),
+                                                       static_cast<float>(y));
+
+                 //get new pixel
+                 const AlbedoIlluminationData data = {TraceReproject(primaryRay, maxBounces)};
+                 const uint32_t index = pitch + x;
+
+                 //store albedo, illumination and ray info
+                 albedoBuffer[index] = data.albedo;
+                 illuminationBuffer[index] = data.illumination;
+                 //only copies what we need
+                 rayData[index] = RayDataReproject::GetRayInfo(primaryRay);
+               }
+             });
+    for_each(execution::par, vertIterator.begin(), vertIterator.end(),
+             [this](const int32_t y)
+             {
+               const int32_t pitch = y * SCRWIDTH;
+               for (int32_t x = 0; x < SCRWIDTH; x++)
+               {
+                 const uint32_t index = x + pitch;
+                 float3 finalIllumination{0};
+
+                 const RayDataReproject rayInfo{rayData[index]};
+                 float3 intersectionP{rayInfo.intersectionPoint};
+                 const MaterialType::MatType matType = rayInfo.materialIndex;
+
+                 float3 newSample{illuminationBuffer[index]};
+                 const float2 halfAPixel = {HALFAPIXELW, HALFAPIXELH};
+                 const float2 uv = prevCamera.PointToUV(intersectionP) + halfAPixel;
+
+                 //prevDynamicFrame
+                 if (IsValid(uv) && !IsOccludedPrevFrame(intersectionP))
+                 {
+                   //sample history
+                   float3 historySample;
+                   historySample = SampleHistory(uv);
+                   //from Lynn
+                   //clamp history!
+
+                   ClampHistory(historySample, newSample, {x, y});
+                   float w = {0.9f};
+                   switch (matType)
+                   {
+                   case MaterialType::NON_METAL_WHITE:
+                   case MaterialType::NON_METAL_RED:
+                   case MaterialType::NON_METAL_BLUE:
+                   case MaterialType::NON_METAL_GREEN:
+                   case MaterialType::NON_METAL_PINK:
+                     w = 0.9f;
+                     break;
+                   case MaterialType::METAL_HIGH:
+                   case MaterialType::METAL_MID:
+                   case MaterialType::METAL_LOW:
+                     w = 0.6f;
+                     break;
+                   case MaterialType::GLASS:
+                     w = 0.6f;
+                     break;
+                   case MaterialType::SMOKE_LOW_DENSITY:
+                   case MaterialType::SMOKE_LOW2_DENSITY:
+                   case MaterialType::SMOKE_MID_DENSITY:
+                   case MaterialType::SMOKE_MID2_DENSITY:
+                   case MaterialType::SMOKE_HIGH_DENSITY:
+                   case MaterialType::SMOKE_PLAYER:
+                     w = 0.6f;
+                     break;
+                   case MaterialType::EMISSIVE:
+                     w = 0;
+                     break;
+
+                   default:
+                     w = 0.9f;
+                     break;
+                   }
+                   finalIllumination = lerp(newSample, historySample, w);
+                 }
+                 else
+                 {
+                   finalIllumination = newSample;
+                 }
+
+
+                 illuminationBuffer[index] = finalIllumination;
+
+                 //apply ACES
+                 float4 acesPixel = ApplyReinhardJodie(finalIllumination * albedoBuffer[index]);
+
+                 screen->pixels[index] = RGBF32_to_RGB8(&acesPixel);
+               }
+             });
+    illuminationHistoryBuffer = illuminationBuffer;
+  }
+
+  //game logic
+  //switch back to reprojection after a while
+  if (staticCamera)
+  {
+    if (staticCameraTimer.elapsed() > timeToReactivate)
+    {
+      staticCamera = false;
+    }
+  }
   if (inLight || IsKeyDown(GLFW_KEY_R))
   {
     player.RevertMovePlayer(voxelVolumes[0]);
+    staticCamera = true;
+    staticCameraTimer.reseting();
     ResetAccumulator();
   }
   //add all for polymophism
@@ -1693,6 +2224,8 @@ void Renderer::Tick(const float deltaTime)
   float fps = 1000.0f / avg, rps = (SCRWIDTH * SCRHEIGHT) / avg;
   printf("%5.2fms (%.1ffps) - %.1fMrays/s\n", avg, fps, rps / 1000);
   // handle user input
+  camera.SetFrustumNormals();
+  CopyToPrevCamera();
 }
 
 
@@ -1801,14 +2334,26 @@ float3 Renderer::SampleSky(const float3& direction) const
   const int skyIdx = max(0, u + v * skyWidth) * 3;
 
   return HDRLightContribution * float3{skyPixels[skyIdx], skyPixels[skyIdx + 1], skyPixels[skyIdx + 2]};
-  //const float uFloat = static_cast<float>(skyWidth) * atan2f(direction.z, direction.x) * INV2PI - 0.5f;
-  //const float vFloat = static_cast<float>(skyHeight) * acosf(direction.y) * INVPI - 0.5f;
+}
 
-  //const int u = static_cast<int>(uFloat);
-  //const int v = static_cast<int>(vFloat);
+AlbedoIlluminationData Renderer::SampleSkyReproject(const float3& direction) const
+{
+  if (!activateSky)
+  {
+    return {float3{0.392f, 0.584f, 0.829f}, float3{1}};
+  }
+  // Sample sky
+  const float uFloat = static_cast<float>(skyWidth) * atan2_approximation2(direction.z, direction.x) * INV2PI
+    - 0.5f;
+  const int u = static_cast<int>(uFloat);
 
-  //const int skyIdx = max(0, u + v * skyWidth) * 3;
-  //return HDRLightContribution * float3(skyPixels[skyIdx], skyPixels[skyIdx + 1], skyPixels[skyIdx + 2]);
+  const float vFloat = static_cast<float>(skyHeight) * FastAcos(direction.y) * INVPI - 0.5f;
+
+  const int v = static_cast<int>(vFloat);
+
+  const int skyIdx = max(0, u + v * skyWidth) * 3;
+
+  return {HDRLightContribution * float3{skyPixels[skyIdx], skyPixels[skyIdx + 1], skyPixels[skyIdx + 2]}, float3{1}};
 }
 
 void Renderer::HandleImguiPointLights()
@@ -2338,7 +2883,7 @@ void Renderer::HandleImguiVoxelVolumes()
       ResetAccumulator();
     }
     ImGui::SliderFloat(("radius volume sphere" + to_string(i)).c_str(), &radiusEmissiveSphere, 0.0f,
-                       static_cast<float>(scene.WORLDSIZE));
+                       static_cast<float>(scene.worldsize));
 
     if (ImGui::IsItemEdited())
 

@@ -697,9 +697,19 @@ void Renderer::Init()
   InitSeed(static_cast<uint>(time(nullptr)));
   //multiply by 16 because float4 consists of 16 bytes
   accumulator = static_cast<float4*>(MALLOC64(SCRWIDTH * SCRHEIGHT * 16));
+  illuminationBuffer = static_cast<float3*>(MALLOC64(SCRWIDTH * SCRHEIGHT * 12));
+  albedoBuffer = static_cast<float3*>(MALLOC64(SCRWIDTH * SCRHEIGHT * 12));
+
+  illuminationHistoryBuffer = static_cast<float3*>(MALLOC64(SCRWIDTH * SCRHEIGHT * 12));
+  rayData = static_cast<RayDataReproject*>(MALLOC64(SCRWIDTH * SCRHEIGHT * 32));
 
 
   memset(accumulator, 0, SCRWIDTH * SCRHEIGHT * 16);
+  memset(illuminationBuffer, 0, SCRWIDTH * SCRHEIGHT * 12);
+  memset(albedoBuffer, 0, SCRWIDTH * SCRHEIGHT * 12);
+  memset(illuminationHistoryBuffer, 0, SCRWIDTH * SCRHEIGHT * 12);
+  memset(rayData, 0, SCRWIDTH * SCRHEIGHT * 32);
+
   // try to load a camera
   FILE* f = fopen("camera.bin", "rb");
   if (f)
@@ -2109,7 +2119,8 @@ void Renderer::Tick(const float deltaTime)
                  screen->pixels[index] = RGBF32_to_RGB8(&acesPixel);
                }
              });
-    illuminationHistoryBuffer = illuminationBuffer;
+
+    memcpy(illuminationHistoryBuffer, illuminationBuffer, sizeof(illuminationBuffer) * SCRWIDTH * SCRHEIGHT);
   }
 
   //game logic

@@ -237,10 +237,9 @@ namespace Tmpl8
     float timeToReactivate = 2.0f;
 
     //reprojection
-    std::array<float3, SCRWIDTH * SCRHEIGHT> illuminationBuffer;
-    std::array<float3, SCRWIDTH * SCRHEIGHT> albedoBuffer;
-    std::array<float3, SCRWIDTH * SCRHEIGHT> illuminationHistoryBuffer;
-    std::array<float3, SCRWIDTH * SCRHEIGHT> tempIlluminationBuffer;
-    std::array<RayDataReproject, SCRWIDTH * SCRHEIGHT> rayData;
+    float3* illuminationBuffer;
+    float3* albedoBuffer;
+    float3* illuminationHistoryBuffer;
+    RayDataReproject* rayData;
   };
 } // namespace Tmpl8

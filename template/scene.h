@@ -190,10 +190,10 @@ namespace Tmpl8
       {
         // Check for self-assignment
         // Copy members from 'other' to 'this'
-        worldsize = other.worldsize;
-        gridsize = other.gridsize;
-        gridsize2 = other.gridsize2;
-        gridsize3 = other.gridsize3;
+        WORLDSIZE = other.WORLDSIZE;
+        GRIDSIZE = other.GRIDSIZE;
+        GRIDSIZE2 = other.GRIDSIZE2;
+        GRIDSIZE3 = other.GRIDSIZE3;
         grid = other.grid;
         scaleModel = other.scaleModel;
         rotation = other.rotation;
@@ -243,17 +243,16 @@ namespace Tmpl8
 #ifdef USE_MORTON
 			return MortonEncode(x, y, z);
 # else
-      return x + y * gridsize + z * gridsize2;
+      return x + y * GRIDSIZE + z * GRIDSIZE2;
 #endif
     }
 
     bool IsOccluded(Ray& ray) const;
     void Set(const uint x, const uint y, const uint z, const MaterialType::MatType v);
-    //I can't make these consts, but I consider them to be
-    uint32_t worldsize; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
-    uint32_t gridsize;
-    uint32_t gridsize2;
-    uint32_t gridsize3;
+    uint32_t WORLDSIZE; // power of 2. Warning: max 512 for a 512x512x512x4 bytes = 512MB world!;
+    uint32_t GRIDSIZE;
+    uint32_t GRIDSIZE2;
+    uint32_t GRIDSIZE3;
 
     /* 3D coordinate to morton code. */
     std::vector<MaterialType::MatType> grid{};

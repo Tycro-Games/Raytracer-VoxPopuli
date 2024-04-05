@@ -368,7 +368,7 @@ void Renderer::MaterialSetUp()
   const auto materialDifRefMid = make_shared<Material>(float3(0, 1, 1), 0.5f);
   const auto materialDifRefLow = make_shared<Material>(float3(0.9f), 0.01f);
   //partial mirror
-  const auto glass = make_shared<Material>(float3(1, 1, 1));
+  const auto glass = make_shared<Material>(float3(1, 0.5f, 1));
   glass->IOR = 1.45f;
   float3 smokeColor = float3{1.0f, 0.7f, 1.0f};
 
@@ -777,11 +777,10 @@ bool Renderer::IsOccludedPrevFrame(const float3& intersectionP) const
 float3 Renderer::SampleHistory(const float2& uvCoordinate)
 {
   float2 uv{uvCoordinate};
-  static constexpr float halfPixelWidth = (1.0f / SCRWIDTH) / 2.0f;
-  static constexpr float halfPixelHeight = (1.0f / SCRHEIGHT) / 2.0f;
+
   //to the corner
-  uv.x -= halfPixelWidth;
-  uv.y -= halfPixelHeight;
+  uv.x -= HALF_PIXEL_W;
+  uv.y -= HALF_PIXEL_H;
 
   const float2 point = {uv.x * SCRWIDTH, uv.y * SCRHEIGHT};
 
@@ -907,7 +906,7 @@ void Renderer::ClampHistory(float3& historySample, float3 newSample, const int2&
   historySample = YCoCgToRGB(historySample);
 
   // Make sure history sample is still valid after color clamping and conversion
-  historySample = max(historySample, 0.0f);
+  historySample = fmaxf(historySample, 0.0f);
 }
 
 
@@ -1344,27 +1343,16 @@ AlbedoIlluminationData Renderer::TraceNonMetal(Ray& ray, int depth)
 {
   Ray newRay;
   float3 illumination{0};
-  float3 albedo{0};
-  if (RandomFloat() > SchlickReflectanceNonMetal(dot(-ray.D, ray.rayNormal)))
-  {
-    float3 incLight{0};
-    const float3 randomDirection = RandomLambertianReflectionVector(ray.rayNormal);
-    Illumination(ray, incLight);
-    newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
-    illumination += incLight;
-    illumination += TraceReproject(newRay, depth - 1).GetColor();
-    albedo = GetAlbedo(ray.indexMaterial);
-  }
-  else
-  {
-    const float3 reflectedDirection = Reflect(ray.D, ray.rayNormal);
-    newRay = Ray{
-      OffsetRay(ray.IntersectionPoint(), ray.rayNormal),
-      reflectedDirection + GetRoughness(ray.indexMaterial) * RandomSphereSample()
-    };
-    illumination = TraceReproject(newRay, depth - 1).GetColor();
-    albedo = {1};
-  }
+
+  float3 incLight{0};
+  const float3 randomDirection = RandomLambertianReflectionVector(ray.rayNormal);
+  Illumination(ray, incLight);
+  newRay = Ray{OffsetRay(ray.IntersectionPoint(), ray.rayNormal), randomDirection};
+  illumination += incLight;
+  illumination += TraceReproject(newRay, depth - 1).GetColor();
+  const float3 albedo = GetAlbedo(ray.indexMaterial);
+
+
   return {albedo, illumination};
 }
 
@@ -2018,8 +2006,8 @@ void Renderer::Tick(const float deltaTime)
                const uint32_t pitch = y * SCRWIDTH;
                for (uint32_t x = 0; x < SCRWIDTH; x++)
                {
-                 Ray primaryRay = camera.GetPrimaryRay(static_cast<float>(x),
-                                                       static_cast<float>(y));
+                 Ray primaryRay = camera.GetPrimaryRayNoDOF(static_cast<float>(x),
+                                                            static_cast<float>(y));
 
                  //get new pixel
                  const AlbedoIlluminationData data = {TraceReproject(primaryRay, maxBounces)};
@@ -2046,18 +2034,18 @@ void Renderer::Tick(const float deltaTime)
                  const MaterialType::MatType matType = rayInfo.materialIndex;
 
                  float3 newSample{illuminationBuffer[index]};
-                 const float2 halfAPixel = {HALFAPIXELW, HALFAPIXELH};
-                 const float2 uv = prevCamera.PointToUV(intersectionP) + halfAPixel;
+                 const float2 halfAPixel = {HALF_PIXEL_W, HALF_PIXEL_H};
+                 //sample from the previos frame
+                 const float2 uv{prevCamera.PointToUV(intersectionP) + halfAPixel};
 
-                 //prevDynamicFrame
+                 //check the validity of the coordinate
                  if (IsValid(uv) && !IsOccludedPrevFrame(intersectionP))
                  {
                    //sample history
                    float3 historySample;
                    historySample = SampleHistory(uv);
-                   //from Lynn
-                   //clamp history!
 
+                   //clamp history!
                    ClampHistory(historySample, newSample, {x, y});
                    float w = {0.9f};
                    switch (matType)
@@ -2067,15 +2055,15 @@ void Renderer::Tick(const float deltaTime)
                    case MaterialType::NON_METAL_BLUE:
                    case MaterialType::NON_METAL_GREEN:
                    case MaterialType::NON_METAL_PINK:
-                     w = 0.9f;
+                     w = 0.8f;
                      break;
                    case MaterialType::METAL_HIGH:
                    case MaterialType::METAL_MID:
                    case MaterialType::METAL_LOW:
-                     w = 0.6f;
+                     w = 0.5f;
                      break;
                    case MaterialType::GLASS:
-                     w = 0.6f;
+                     w = 0.5f;
                      break;
                    case MaterialType::SMOKE_LOW_DENSITY:
                    case MaterialType::SMOKE_LOW2_DENSITY:
@@ -2083,7 +2071,7 @@ void Renderer::Tick(const float deltaTime)
                    case MaterialType::SMOKE_MID2_DENSITY:
                    case MaterialType::SMOKE_HIGH_DENSITY:
                    case MaterialType::SMOKE_PLAYER:
-                     w = 0.6f;
+                     w = 0.9f;
                      break;
                    case MaterialType::EMISSIVE:
                      w = 0;
@@ -2101,15 +2089,15 @@ void Renderer::Tick(const float deltaTime)
                  }
 
 
-                 illuminationBuffer[index] = finalIllumination;
+                 tempIlluminationBuffer[index] = finalIllumination;
 
                  //apply ACES
-                 float4 acesPixel = ApplyReinhardJodie(finalIllumination * albedoBuffer[index]);
+                 float4 acesPixel = ApplyReinhardJodie(albedoBuffer[index] * finalIllumination);
 
                  screen->pixels[index] = RGBF32_to_RGB8(&acesPixel);
                }
              });
-    illuminationHistoryBuffer = illuminationBuffer;
+    illuminationHistoryBuffer = tempIlluminationBuffer;
   }
 
   //game logic

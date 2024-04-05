@@ -224,7 +224,7 @@ void main()
   ImGuiIO& io = ImGui::GetIO();
   io.IniFilename = "./imgui.ini";
   // done, enter main loop
-#if 1
+#if 0
   // basic shader: apply gamma correction
   Shader* shader = new Shader(
     "#version 330\nin vec4 p;\nin vec2 t;out vec2 u;void main(){u=t;gl_Position=p;}",

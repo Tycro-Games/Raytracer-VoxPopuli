@@ -3,8 +3,9 @@
 // default screen resolution
 #define SCRWIDTH	256
 #define SCRHEIGHT	212
-#define HALFAPIXELW	1.0f/SCRWIDTH/2.0f
-#define HALFAPIXELH	1.0f/SCRHEIGHT/2.0f
+
+constexpr float HALF_PIXEL_W = 1.0f / SCRWIDTH / 2.0f;
+constexpr float HALF_PIXEL_H = 1.0f / SCRHEIGHT / 2.0f;
 // #define FULLSCREEN
 #define DOUBLESIZE
 
@@ -97,6 +98,15 @@ namespace Tmpl8
 
       const float3 rayDirection = (focalPoint - rayOrigin);
       return {rayOrigin, rayDirection};
+    }
+
+    Ray GetPrimaryRayNoDOF(const float x, const float y) const
+    {
+      const float u = x * (1.0f / SCRWIDTH);
+      const float v = y * (1.0f / SCRHEIGHT);
+      const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
+      // return Ray( camPos, normalize( P - camPos ) );
+      return {camPos, P - camPos};
     }
 
 

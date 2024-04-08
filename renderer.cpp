@@ -596,7 +596,7 @@ void Renderer::SetUpFirstZone()
   //environment
   voxelVolumes.emplace_back(Scene({0.0f, -1.0f, 0.0f}, 1));
   voxelVolumes.emplace_back(Scene({6.0f, 0.0f, 0.0f}, 1));
-  voxelVolumes.emplace_back(Scene({-6.0f, 0.0f, 0.0f}, 1));
+  voxelVolumes.emplace_back(Scene({-10.0f, 2.0f, 0.0f}, 1));
   voxelVolumes.emplace_back(Scene({0.0f, 4.0f, 0.0f}, 1));
   //checkpoint
   voxelVolumes.emplace_back(Scene({0.0f, 0.3f, 0.0f}, 64));
@@ -1973,7 +1973,7 @@ void Renderer::Tick(const float deltaTime)
 {
   const Timer t;
 
-  if (staticCamera)
+  if (!staticCamera)
   {
     if (IsKeyDown((GLFW_KEY_RIGHT_SHIFT)))
       if (camera.HandleInput(deltaTime))

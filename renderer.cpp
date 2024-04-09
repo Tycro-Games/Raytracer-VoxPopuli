@@ -2304,6 +2304,7 @@ void Renderer::MouseDown(int /*button*/)
   //Trace(primaryRay, 5);
 }
 
+//from Jacco
 float3 Renderer::SampleSky(const float3& direction) const
 {
   if (!activateSky)
